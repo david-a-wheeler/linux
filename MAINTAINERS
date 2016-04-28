@@ -9977,6 +9977,12 @@ T:	git git://git.kernel.org/pub/scm/linux/kernel/git/kees/linux.git yama/tip
 S:	Supported
 F:	security/yama/
 
+SQUELCH SECURITY MODULE
+M:	David A. Wheeler <David A. Wheeler>
+T:	git https://github.com/david-a-wheeler/linux.git squelch/tip
+S:	Supported
+F:	security/squelch/
+
 SENSABLE PHANTOM
 M:	Jiri Slaby <jirislaby@gmail.com>
 S:	Maintained

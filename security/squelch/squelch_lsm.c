@@ -13,11 +13,17 @@
 
 #include <linux/lsm_hooks.h>
 
-
 /* TODO: Handle all other cases of dentry creation.
  * Report to log with: printk_ratelimited(KERN_NOTICE "message", ...);
  * See discussion about getting dentry name (d_name) and %pd here:
  * thread.gmane.org/gmane.linux-file-systems/37940
+ * See example of "LoadPin":
+ *   https://github.com/david-a-wheeler/squelch.git
+ * Make 'enabled' do something, and start with "off" as default.
+ * Allow control of various factors, e.g., does it control root or those
+ * with privileged capabilities?
+ * What's allowed/forbidden?
+ * Add sysctl to control it at run-time.
  */
 
 /**
@@ -51,3 +57,4 @@ void __init squelch_add_hooks(void)
 	pr_info("Squelch: Preventing the creation of malicious filenames.\n");
 	security_add_hooks(squelch_hooks, ARRAY_SIZE(squelch_hooks));
 }
+

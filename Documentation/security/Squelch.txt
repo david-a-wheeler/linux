@@ -1,0 +1,30 @@
+Squelch is a Linux Security Module that restricts what filenames can be created
+(e.g., it can prevent creation of filenames with control characters,
+beginning with dash, or ones that are not UTF-8).
+This can be used as a hardening measure to counter certain
+kinds of attacks.  It a minor module, so it can be included along with
+a major module.
+
+Many POSIX systems typically allow filenames to contain any sequence of bytes
+other than / and \0.  However, many users and developers presume that filenames
+can't include control characters (like tab and newline), can't start with "-",
+and are encoded as a sequence of valid UTF-8 characters.
+This difference between what users and developers expect, as compared
+to reality, can lead to defects and security vulnerabilities.
+The Common Weakness Enumeration (CWE) includes 3 weakneses related to this
+(CWE 78, CWE 73, and CWE 116). Examples of vulnerabilities from this
+problem include CVE-2011-1155 (logrotate) and
+CVE-2013-7085 (uscan in devscripts).
+For a general discussion of the problem, see:
+http://www.dwheeler.com/essays/fixing-unix-linux-filenames.html
+
+You should still write code that handles unusual filenames correctly.
+However, until all code is correct (and stays that way),
+this hardening mechanism can be useful.
+
+This module only prevents *creating* filenames with certain
+characteristics; it makes no attempt to counter them at mount time.
+This is still useful, since in many systems it's not possible
+to mount untrusted filesystems.  A future version might add such
+checking as an option.
+
