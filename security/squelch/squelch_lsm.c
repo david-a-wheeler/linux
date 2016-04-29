@@ -12,6 +12,7 @@
  */
 
 #include <linux/lsm_hooks.h>
+#include <linux/sysctl.h>
 
 /* TODO: Handle all other cases of dentry creation.
  * Report to log with: printk_ratelimited(KERN_NOTICE "message", ...);
@@ -25,6 +26,40 @@
  * What's allowed/forbidden?
  * Add sysctl to control it at run-time.
  */
+
+static int enabled; /* Disabled by default */
+static int zero = 0;
+static int one = 1;
+
+#ifdef CONFIG_SYSCTL
+struct ctl_path squelch_sysctl_path[] = {
+	{ .procname = "kernel", },
+	{ .procname = "squelch", },
+	{ }
+};
+
+static struct ctl_table squelch_sysctl_table[] = {
+	{
+		.procname       = "enabled",
+		.data           = &enabled,
+		.maxlen         = sizeof(int),
+		.mode           = 0644,
+		.proc_handler   = proc_dointvec_minmax,
+		.extra1         = &zero,
+		.extra2         = &one,
+	},
+	{ }
+};
+
+static void __init squelch_init_sysctl(void)
+{
+	if (!register_sysctl_paths(squelch_sysctl_path, squelch_sysctl_table))
+		panic("Squelch: sysctl registration failed.\n");
+}
+#else
+static inline void squelch_init_sysctl(void) { }
+#endif /* CONFIG_SYSCTL */
+
 
 /**
  * squelch_inode_create - Check squelch rules when it tries to create inode.
@@ -55,6 +90,8 @@ static struct security_hook_list squelch_hooks[] = {
 void __init squelch_add_hooks(void)
 {
 	pr_info("Squelch: Preventing the creation of malicious filenames.\n");
+	printk(KERN_ALERT "DEBUG: Squelch starting up\n");
 	security_add_hooks(squelch_hooks, ARRAY_SIZE(squelch_hooks));
+	squelch_init_sysctl();
 }
 
