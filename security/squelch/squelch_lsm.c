@@ -60,6 +60,33 @@ static void __init squelch_init_sysctl(void)
 static inline void squelch_init_sysctl(void) { }
 #endif /* CONFIG_SYSCTL */
 
+/**
+ * squelch_name_okay - Return 0 if given filename okay
+ */
+static int squelch_name_okay(char *name)
+{
+	if (!enabled) {
+		return 0;
+	}
+	/* TODO: Do real checking.  For now, stub out a test. */
+	if (name[0] == '-') {
+		printk(KERN_ALERT "DEBUG: Squelch found name begins with '-': %s\n", name);
+	}
+	return 0;
+}
+
+/**
+ * squelch_dentry_okay - Return 0 if dentry's name is okay.
+ */
+static int squelch_dentry_okay(struct dentry *dentry)
+{
+	/* TODO: Check - Do we need to lock the dentry, using
+	 * spin_lock(&dentry->d_lock) .. spin_unlock(&dentry->d_lock) ?
+	 * I believe the answer is "no", since the dentries haven't been
+	 * added to the filesystem yet (that's what we're checking for!).
+	 */
+	return squelch_name_okay(dentry->d_name.name);
+}
 
 /**
  * squelch_inode_create - Check squelch rules when it tries to create inode.
@@ -68,7 +95,7 @@ static inline void squelch_init_sysctl(void) { }
 static int squelch_inode_create(struct inode *dir, struct dentry *dentry,
                                 umode_t mode)
 {
-	return 0;
+	return squelch_dentry_okay(dentry);
 }
 
 /**
@@ -78,7 +105,7 @@ static int squelch_inode_create(struct inode *dir, struct dentry *dentry,
 static int squelch_inode_link(struct dentry *old_dentry, struct inode *dir,
                                 struct dentry *new_dentry)
 {
-	return 0;
+	return squelch_dentry_okay(new_dentry);
 }
 
 static struct security_hook_list squelch_hooks[] = {
