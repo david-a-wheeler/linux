@@ -33,57 +33,6 @@ static int admin_overrides;
  * Disabled by default. */
 static int utf8;
 
-static int zero = 0;
-static int one = 1;
-
-#ifdef CONFIG_SYSCTL
-struct ctl_path squelch_sysctl_path[] = {
-	{ .procname = "kernel", },
-	{ .procname = "squelch", },
-	{ }
-};
-
-static struct ctl_table squelch_sysctl_table[] = {
-	{
-		.procname       = "enabled",
-		.data           = &enabled,
-		.maxlen         = sizeof(int),
-		.mode           = 0644,
-		.proc_handler   = proc_dointvec_minmax,
-		.extra1         = &zero,
-		.extra2         = &one,
-	},
-	{
-		.procname       = "admin_overrides",
-		.data           = &admin_overrides,
-		.maxlen         = sizeof(int),
-		.mode           = 0644,
-		.proc_handler   = proc_dointvec_minmax,
-		.extra1         = &zero,
-		.extra2         = &one,
-	},
-	{
-		.procname       = "utf8",
-		.data           = &utf8,
-		.maxlen         = sizeof(int),
-		.mode           = 0644,
-		.proc_handler   = proc_dointvec_minmax,
-		.extra1         = &zero,
-		.extra2         = &one,
-	},
-	{ }
-};
-
-static void __init squelch_init_sysctl(void)
-{
-	if (!register_sysctl_paths(squelch_sysctl_path, squelch_sysctl_table))
-		panic("Squelch: sysctl registration failed.\n");
-}
-#else
-static inline void squelch_init_sysctl(void) { }
-#endif /* CONFIG_SYSCTL */
-
-
 /**
  * is_utf8 - Returns NULL if string is entirely valid utf8, else returns
  *           pointer to where it fails.
@@ -271,7 +220,55 @@ static int squelch_path_rename(struct path *old_dir, struct dentry *old_dentry,
 	return squelch_dentry_check(new_dentry);
 }
 
+#ifdef CONFIG_SYSCTL
+static int zero = 0;
+static int one = 1;
 
+struct ctl_path squelch_sysctl_path[] = {
+	{ .procname = "kernel", },
+	{ .procname = "squelch", },
+	{ }
+};
+
+static struct ctl_table squelch_sysctl_table[] = {
+	{
+		.procname       = "enabled",
+		.data           = &enabled,
+		.maxlen         = sizeof(int),
+		.mode           = 0644,
+		.proc_handler   = proc_dointvec_minmax,
+		.extra1         = &zero,
+		.extra2         = &one,
+	},
+	{
+		.procname       = "admin_overrides",
+		.data           = &admin_overrides,
+		.maxlen         = sizeof(int),
+		.mode           = 0644,
+		.proc_handler   = proc_dointvec_minmax,
+		.extra1         = &zero,
+		.extra2         = &one,
+	},
+	{
+		.procname       = "utf8",
+		.data           = &utf8,
+		.maxlen         = sizeof(int),
+		.mode           = 0644,
+		.proc_handler   = proc_dointvec_minmax,
+		.extra1         = &zero,
+		.extra2         = &one,
+	},
+	{ }
+};
+
+static void __init squelch_init_sysctl(void)
+{
+	if (!register_sysctl_paths(squelch_sysctl_path, squelch_sysctl_table))
+		panic("Squelch: sysctl registration failed.\n");
+}
+#else
+static inline void squelch_init_sysctl(void) { }
+#endif /* CONFIG_SYSCTL */
 
 /* NOTE: Many hooks have both an inode_... and path_... version.
  * For the moment, to be sure we get all cases, we intercept both.
@@ -302,4 +299,3 @@ void __init squelch_add_hooks(void)
 	security_add_hooks(squelch_hooks, ARRAY_SIZE(squelch_hooks));
 	squelch_init_sysctl();
 }
-
