@@ -34,10 +34,9 @@ static int admin_overrides;
 static int utf8;
 
 /**
- * is_utf8 - Returns NULL if string is entirely valid utf8, else returns
- *           pointer to where it fails.
+ * ut8_check - Returns NULL if string is entirely valid utf8, else returns
+ *             pointer to where it fails.
  * @s - string to check.
- *
  * From https://www.cl.cam.ac.uk/~mgk25/ucs/utf8_check.c
  * by Markus Kuhn, released under many licenses incluidng the GPL. See:
  * http://www.cl.cam.ac.uk/~mgk25/short-license.html
