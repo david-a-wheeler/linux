@@ -3,7 +3,7 @@
  *
  * Author: David A. Wheeler <dwheeler@dwheeler.com>
  *
- * Copyright (C) 2016- David A. Wheeler
+ * Copyright (C) 2016 David A. Wheeler
  *
  * This program is free software; you can redistribute it and/or modify
  * it under the terms of the GNU General Public License version 2, as
@@ -13,17 +13,21 @@
 
 #include <linux/lsm_hooks.h>
 #include <linux/sysctl.h>
+#include <linux/types.h>
+#include <linux/bitmap.h>
 
 /* For stub auditing */
 #include <linux/ratelimit.h>
 
 /* TODO:
+ * Do we actually need the path_... hooks?
+ * Do we need to lock the dentry (I don't think so).
  * Full docstrings for functions
  * Byte checks: Optimize loop for common cases.
- * Future: Optionally check names on mount.
- * Report to log with: printk_ratelimited(KERN_NOTICE "message", ...);
- * Allow control of various factors, e.g., does it control root or those
- * with privileged capabilities?
+ * Future: Optionally check filenames on mount.
+ * Better reporting mechanism than printk_ratelimited.
+ * Namespace - allow per-container control.
+ * Optimize filename byte checking loop for common cases?
  */
 
 /* Mode used for unprivileged tasks.  We consider tasks without
@@ -46,6 +50,17 @@ static int mode_for_privileged;
 /* If true, includes a check to see if newly-created filenames are valid UTF-8.
  * Default is 0: Disabled by default. */
 static int utf8;
+
+/* The following are bitmaps that determine which byte values are permitted.
+ * An 'on' bit means that the corresponding byte is permitted in a filename.
+ * A filename's initial byte must be permitted by permitted_bytes_initial,
+ * its final byte must be permitted by permitted_bytes_final,
+ * and all bytes (including first and final) must be permitted
+ * by permitted_bytes.
+ */
+static DECLARE_BITMAP(permitted_bytes_initial, 256);
+static DECLARE_BITMAP(permitted_bytes_final, 256);
+static DECLARE_BITMAP(permitted_bytes, 256);
 
 /**
  * ut8_check - Returns NULL if string is entirely valid utf8, else returns
@@ -109,25 +124,21 @@ static int squelch_name_check_details(const char *name)
 		printk(KERN_ALERT "DEBUG: Squelch got name==NULL\n");
 		return -EPERM;
 	}
-	/* Future: Make filename checking more flexible at runtime,
-	 *  instead of hard-coding.
-	 */
 	c = name[0];
 	if (!c) {
 		printk(KERN_ALERT "DEBUG: Squelch got 0-length name\n");
 		return -EPERM;
 	}
-	/* First character can't be -, ~, or space */
-	if (c == '-' || c == '~' || c == ' ')
+	if (!test_bit(c, permitted_bytes_initial))
 		return -EPERM;
-	/* Check all characters - can't be control char or DEL. */
+	/* Check all characters. TODO: Optimize common cases? */
 	p = name;
         while ((c = *p++) != '\0')
-		if ((c < 0x20) || (c == 0xff))
+		if (!test_bit(c, permitted_bytes))
 			return -EPERM;
 	/* Check final character - can't be space. */
         c = *(p - 1);
-	if (c == ' ')
+	if (!test_bit(c, permitted_bytes_final))
 		return -EPERM;
 	if (utf8)
 		return (utf8_check(name) == NULL) ? 0 : -EPERM;
@@ -295,6 +306,49 @@ static struct ctl_table squelch_sysctl_table[] = {
 		.extra1         = &zero,
 		.extra2         = &one,
 	},
+	{
+		.procname       = "permitted_bytes_initial",
+		.data           = &permitted_bytes_initial,
+		.maxlen         = sizeof(permitted_bytes_initial),
+		.mode           = 0644,
+		.proc_handler   = proc_do_large_bitmap,
+	},
+	{
+		.procname       = "permitted_bytes_final",
+		.data           = &permitted_bytes_final,
+		.maxlen         = sizeof(permitted_bytes_final),
+		.mode           = 0644,
+		.proc_handler   = proc_do_large_bitmap,
+	},
+	{
+		.procname       = "permitted_bytes",
+		.data           = &permitted_bytes,
+		.maxlen         = sizeof(permitted_bytes),
+		.mode           = 0644,
+		.proc_handler   = proc_do_large_bitmap,
+	},
+	/* TODO: TEMPORARY: Let us access the bitvec structure differently */
+	{
+		.procname       = "permitted_bytes_initial_as_intvec",
+		.data           = &permitted_bytes_initial,
+		.maxlen         = sizeof(permitted_bytes_initial),
+		.mode           = 0644,
+		.proc_handler   = proc_dointvec,
+	},
+	{
+		.procname       = "permitted_bytes_final_as_intvec",
+		.data           = &permitted_bytes_final,
+		.maxlen         = sizeof(permitted_bytes_final),
+		.mode           = 0644,
+		.proc_handler   = proc_dointvec,
+	},
+	{
+		.procname       = "permitted_bytes_as_intvec",
+		.data           = &permitted_bytes,
+		.maxlen         = sizeof(permitted_bytes),
+		.mode           = 0644,
+		.proc_handler   = proc_dointvec,
+	},
 	{ }
 };
 
@@ -306,6 +360,29 @@ static void __init squelch_init_sysctl(void)
 #else
 static inline void squelch_init_sysctl(void) { }
 #endif /* CONFIG_SYSCTL */
+
+/* squelch_init_bitmasks - initialize
+ *   permitted_bytes_initial, permitted_bytes_final, and permitted_bytes.
+ *   We do this at run-time for clarity; these bit manipulations are quick,
+ *   so there's not a great advantage in doing this at compile time.
+ */
+static void squelch_init_bitmasks(void)
+{
+     /* Permitted bytes allows ' '..0x7e and 0x80..0xfe. This
+      * omits control chars, 0x7f (DEL), and 0xff. */
+     bitmap_set(permitted_bytes, (int) ' ', 0x7e - (int) ' ');
+     bitmap_set(permitted_bytes_initial, (int) ' ', 0x7e - (int) ' ');
+     bitmap_set(permitted_bytes_final, (int) ' ', 0x7e - (int) ' ');
+     bitmap_set(permitted_bytes, 0x80, 0xfe - 0x80);
+     bitmap_set(permitted_bytes_initial, 0x80, 0xfe - 0x80);
+     bitmap_set(permitted_bytes_final, 0x80, 0xfe - 0x80);
+     /* Forbid '-', ' ', and '~' as initial values. */
+     bitmap_clear(permitted_bytes_initial, (int) '-', 1);
+     bitmap_clear(permitted_bytes_initial, (int) ' ', 1);
+     bitmap_clear(permitted_bytes_initial, (int) '~', 1);
+     /* Forbid ' ' as final value. */
+     bitmap_clear(permitted_bytes_final, (int) ' ', 1);
+}
 
 /* NOTE: Many hooks have both an inode_... and path_... version.
  * For the moment, to be sure we get all cases, we intercept both.
@@ -333,6 +410,7 @@ void __init squelch_add_hooks(void)
 {
 	pr_info("Squelch: Preventing the creation of malicious filenames.\n");
 	printk(KERN_ALERT "DEBUG: Squelch starting up\n");
+        squelch_init_bitmasks();
 	security_add_hooks(squelch_hooks, ARRAY_SIZE(squelch_hooks));
 	squelch_init_sysctl();
 }
