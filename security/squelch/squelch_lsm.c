@@ -148,6 +148,19 @@ static int squelch_name_check_details(const char *name)
 }
 
 /**
+ * squelch_report - Report that a filename doesn't meet the creteria.
+ * @name - filename to check (this is not the entire pathname)
+ * @enforcing - if nonzero, we're going to prevent its creation.
+ * TODO: Should we use a different reporting mechanism?
+ */
+static void squelch_report(const char *name, int enforcing)
+{
+	printk_ratelimited(KERN_INFO "Squelch: Invalid filename %s%*pE\n",
+	  enforcing ? "(creation rejected) " : "",
+	  (int) strlen(name), name);
+}
+
+/**
  * squelch_name_check - Return 0 iff given filename okay,
  *                      checking and handling the mode bits.
  * @name - filename to check (this is not the entire pathname)
@@ -166,9 +179,7 @@ static int squelch_name_check(const char *name)
 	err = squelch_name_check_details(name);
 	/* TODO: Better audit reporting. Be sure to escape name on output. */
 	if (err && (mode & 0x02))
-		printk_ratelimited(KERN_INFO
-		  "Squelch: Invalid filename %*pE\n",
-		  (int) strlen(name), name);
+		squelch_report(name, mode & 0x01);
 	if (mode & 0x01)
 		return err;
 	return 0;
