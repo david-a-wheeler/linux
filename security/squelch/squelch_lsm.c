@@ -16,6 +16,8 @@
 
 /* TODO:
  * Full docstrings for functions
+ * Bits for warning & enforcement separate for ADMIN and not.
+ * Byte checks: Optimize loop for common cases.
  * Future: Optionally check names on mount.
  * Report to log with: printk_ratelimited(KERN_NOTICE "message", ...);
  * Allow control of various factors, e.g., does it control root or those
