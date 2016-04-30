@@ -53,3 +53,34 @@ It makes no attempt to counter unusual filenames at mount time.
 This is still useful, since in many systems it's not possible
 to mount untrusted filesystems.  A future version might add such
 checking as an option.
+
+The module's functions can be configured via "/proc/sys/kernel/squelch/".
+Within that there are the following:
+
+* mode_for_unprivileged: Mode used for unprivileged tasks (0..3).
+  We consider tasks without CAP_SYS_ADMIN as unprivileged.
+  The allowed mode values are:
+  * 0 = not enforced, no audit reports on failed requests
+  * 1 = enforced, no audit reports on failed requests
+  * 2 = not enforced, audit reports made on failed requests
+  * 3 = enforced, audit reports made on failed requests.
+  Default is 0: no enforcement, no audit.
+* mode_for_privileged: Mode used for unprivileged tasks (0..3).
+  We consider tasks with CAP_SYS_ADMIN as privileged.
+  The mode values the same as mode_for_unprivileged.
+  Default is 0: no enforcement, no audit.
+* utf8: If true, include a check to see if filenames are valid UTF-8 (0..1).
+  Default is 0: Do not check.
+
+If either or both modes are either 1 or 3, we call say that
+this module is 'enforcing'.
+
+The POSIX 2013 specification says in XBD 4.7 (file portability, page 109)
+that for a filename to be portable across implementations
+conforming to POSIX, "it shall consist only of the
+portable character set as defined in Section 3.278".
+These characters are [A-Za-z0-9._-].
+POSIX also notes that "applications should avoid using
+filenames that have the <hyphen> character as the
+first character since this may cause problems when
+filenames are passed as arguments."
