@@ -1,6 +1,7 @@
 config SECURITY_SQUELCH
 	bool "Squelch support"
 	depends on SECURITY
+	select SECURITY_PATH
 	default n
 	help
 	  This selects Squelch, which restricts what filenames can be created
