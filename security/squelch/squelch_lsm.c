@@ -14,9 +14,11 @@
 #include <linux/lsm_hooks.h>
 #include <linux/sysctl.h>
 
+/* For stub auditing */
+#include <linux/ratelimit.h>
+
 /* TODO:
  * Full docstrings for functions
- * Bits for warning & enforcement separate for ADMIN and not.
  * Byte checks: Optimize loop for common cases.
  * Future: Optionally check names on mount.
  * Report to log with: printk_ratelimited(KERN_NOTICE "message", ...);
@@ -24,15 +26,25 @@
  * with privileged capabilities?
  */
 
-/* If true, enforce the rules of this module. */
-static int enabled;
+/* Mode used for unprivileged tasks.  We consider tasks without
+ * CAP_SYS_ADMIN as unprivileged.  The mode values are:
+ * 0 = not enforced, no audit reports on failed requests
+ * 1 = enforced, no audit reports on failed requests
+ * 2 = not enforced, audit reports made on failed requests
+ * 3 = enforced, audit reports made on failed requests.
+ * Default is 0: no enforcement, no audit.
+ */
+static int mode_for_unprivileged;
 
-/* If true, tasks with CAP_SYS_ADMIN can override and make "bad" filenames.
- * Disabled by default. */
-static int admin_overrides;
+/* Mode used for privileged tasks.  We consider tasks with
+ * CAP_SYS_ADMIN as privileged.  The mode values the same as
+ * mode_for_unprivileged.
+ * Default is 0: no enforcement, no audit.
+ */
+static int mode_for_privileged;
 
-/* If true, requires newly-created filenames to be valid UTF-8.
- * Disabled by default. */
+/* If true, includes a check to see if newly-created filenames are valid UTF-8.
+ * Default is 0: Disabled by default. */
 static int utf8;
 
 /**
@@ -85,17 +97,13 @@ static const char *utf8_check(const char *s)
 }
 
 /**
- * squelch_name_check - Return 0 iff given filename okay
+ * squelch_name_check_details - Return 0 iff given filename okay
  * @name - filename to check (this is not the entire pathname)
  */
-static int squelch_name_check(const char *name)
+static int squelch_name_check_details(const char *name)
 {
 	char c;
 	const char *p;
-	if (!enabled)
-		return 0;
-	if (admin_overrides && capable(CAP_SYS_ADMIN))
-		return 0;
 	if (!name) {
 		// Handle null name; shouldn't happen.
 		printk(KERN_ALERT "DEBUG: Squelch got name==NULL\n");
@@ -125,6 +133,33 @@ static int squelch_name_check(const char *name)
 		return (utf8_check(name) == NULL) ? 0 : -EPERM;
 	/* Should we check specially for UTF-8 chars, e.g., UTF-8 spaces? */
 	/* All checks passed, return "no error" */
+	return 0;
+}
+
+/**
+ * squelch_name_check - Return 0 iff given filename okay,
+ *                      checking and handling the mode bits.
+ * @name - filename to check (this is not the entire pathname)
+ */
+static int squelch_name_check(const char *name)
+{
+	int mode;
+	int err;
+	if (capable(CAP_SYS_ADMIN))
+		mode = mode_for_privileged;
+	else
+		mode = mode_for_unprivileged;
+	/* Don't do any work if it's not needed. */
+	if (!mode)
+		return 0;
+	err = squelch_name_check_details(name);
+	/* TODO: Better audit reporting. Be sure to escape name on output. */
+	if (err && (mode & 0x02))
+		printk_ratelimited(KERN_INFO
+		  "Squelch: Invalid filename %*pE\n",
+		  (int) strlen(name), name);
+	if (mode & 0x01)
+		return err;
 	return 0;
 }
 
@@ -224,6 +259,7 @@ static int squelch_path_rename(struct path *old_dir, struct dentry *old_dentry,
 #ifdef CONFIG_SYSCTL
 static int zero = 0;
 static int one = 1;
+static int three = 3;
 
 struct ctl_path squelch_sysctl_path[] = {
 	{ .procname = "kernel", },
@@ -233,22 +269,22 @@ struct ctl_path squelch_sysctl_path[] = {
 
 static struct ctl_table squelch_sysctl_table[] = {
 	{
-		.procname       = "enabled",
-		.data           = &enabled,
+		.procname       = "mode_for_unprivileged",
+		.data           = &mode_for_unprivileged,
 		.maxlen         = sizeof(int),
 		.mode           = 0644,
 		.proc_handler   = proc_dointvec_minmax,
 		.extra1         = &zero,
-		.extra2         = &one,
+		.extra2         = &three,
 	},
 	{
-		.procname       = "admin_overrides",
-		.data           = &admin_overrides,
+		.procname       = "mode_for_privileged",
+		.data           = &mode_for_privileged,
 		.maxlen         = sizeof(int),
 		.mode           = 0644,
 		.proc_handler   = proc_dointvec_minmax,
 		.extra1         = &zero,
-		.extra2         = &one,
+		.extra2         = &three,
 	},
 	{
 		.procname       = "utf8",
