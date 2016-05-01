@@ -388,13 +388,16 @@ static void squelch_init_bitmasks(void)
      bitmap_set(permitted_bytes, (int) ' ', 0x7e - (int) ' ' + 1);
      bitmap_set(permitted_bytes_initial, (int) ' ', 0x7e - (int) ' ' + 1);
      bitmap_set(permitted_bytes_final, (int) ' ', 0x7e - (int) ' ' + 1);
+
      bitmap_set(permitted_bytes, 0x80, 0xfe - 0x80 + 1);
      bitmap_set(permitted_bytes_initial, 0x80, 0xfe - 0x80 + 1);
      bitmap_set(permitted_bytes_final, 0x80, 0xfe - 0x80 + 1);
+
      /* Forbid '-', ' ', and '~' as initial values. */
      bitmap_clear(permitted_bytes_initial, (int) '-', 1);
      bitmap_clear(permitted_bytes_initial, (int) ' ', 1);
      bitmap_clear(permitted_bytes_initial, (int) '~', 1);
+
      /* Forbid ' ' as final value. */
      bitmap_clear(permitted_bytes_final, (int) ' ', 1);
 }
