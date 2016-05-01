@@ -57,10 +57,18 @@ static int utf8;
  * its final byte must be permitted by permitted_bytes_final,
  * and all bytes (including first and final) must be permitted
  * by permitted_bytes.
+ *
+ * DECLARE_BITMAP is defined in linux/types.h as an array of unsigned longs.
  */
+
 static DECLARE_BITMAP(permitted_bytes_initial, 256);
 static DECLARE_BITMAP(permitted_bytes_final, 256);
 static DECLARE_BITMAP(permitted_bytes, 256);
+
+/* Need these for proc_do_large_bitmap */
+unsigned long *permitted_bytes_initial_ptr = permitted_bytes_initial;
+unsigned long *permitted_bytes_final_ptr = permitted_bytes_final;
+unsigned long *permitted_bytes_ptr = permitted_bytes;
 
 /**
  * ut8_check - Returns NULL if string is entirely valid utf8, else returns
@@ -319,22 +327,22 @@ static struct ctl_table squelch_sysctl_table[] = {
 	},
 	{
 		.procname       = "permitted_bytes_initial",
-		.data           = &permitted_bytes_initial,
-		.maxlen         = sizeof(permitted_bytes_initial),
+		.data           = &permitted_bytes_initial_ptr,
+		.maxlen         = 256, /* oddly, this API length is in bits */
 		.mode           = 0644,
 		.proc_handler   = proc_do_large_bitmap,
 	},
 	{
 		.procname       = "permitted_bytes_final",
-		.data           = &permitted_bytes_final,
-		.maxlen         = sizeof(permitted_bytes_final),
+		.data           = &permitted_bytes_final_ptr,
+		.maxlen         = 256,
 		.mode           = 0644,
 		.proc_handler   = proc_do_large_bitmap,
 	},
 	{
 		.procname       = "permitted_bytes",
-		.data           = &permitted_bytes,
-		.maxlen         = sizeof(permitted_bytes),
+		.data           = &permitted_bytes_ptr,
+		.maxlen         = 256,
 		.mode           = 0644,
 		.proc_handler   = proc_do_large_bitmap,
 	},
@@ -379,14 +387,14 @@ static inline void squelch_init_sysctl(void) { }
  */
 static void squelch_init_bitmasks(void)
 {
-     /* Permitted bytes allows ' '..0x7e and 0x80..0xfe. This
-      * omits control chars, 0x7f (DEL), and 0xff. */
-     bitmap_set(permitted_bytes, (int) ' ', 0x7e - (int) ' ');
-     bitmap_set(permitted_bytes_initial, (int) ' ', 0x7e - (int) ' ');
-     bitmap_set(permitted_bytes_final, (int) ' ', 0x7e - (int) ' ');
-     bitmap_set(permitted_bytes, 0x80, 0xfe - 0x80);
-     bitmap_set(permitted_bytes_initial, 0x80, 0xfe - 0x80);
-     bitmap_set(permitted_bytes_final, 0x80, 0xfe - 0x80);
+     /* Permitted bytes allows ' '..0x7e and 0x80..0xfe.
+      * This omits control chars, 0x7f (DEL), and 0xff. */
+     bitmap_set(permitted_bytes, (int) ' ', 0x7e - (int) ' ' + 1);
+     bitmap_set(permitted_bytes_initial, (int) ' ', 0x7e - (int) ' ' + 1);
+     bitmap_set(permitted_bytes_final, (int) ' ', 0x7e - (int) ' ' + 1);
+     bitmap_set(permitted_bytes, 0x80, 0xfe - 0x80 + 1);
+     bitmap_set(permitted_bytes_initial, 0x80, 0xfe - 0x80 + 1);
+     bitmap_set(permitted_bytes_final, 0x80, 0xfe - 0x80 + 1);
      /* Forbid '-', ' ', and '~' as initial values. */
      bitmap_clear(permitted_bytes_initial, (int) '-', 1);
      bitmap_clear(permitted_bytes_initial, (int) ' ', 1);
