@@ -125,33 +125,29 @@ static const char *utf8_check(const char *s)
  */
 static int squelch_name_check_details(const char *name)
 {
-	char c;
-	const char *p;
-	if (!name) {
-		// Handle null name; shouldn't happen.
-		printk(KERN_ALERT "DEBUG: Squelch got name==NULL\n");
+	unsigned char c; /* Unsigned to correctly index in a bitmask */
+	const unsigned char *p;
+	if (!name) { /* Handle null name; shouldn't happen. */
+		printk(KERN_ALERT "Error - squelch got name==NULL\n");
 		return -EPERM;
 	}
-	c = name[0];
-	if (!c) {
-		printk(KERN_ALERT "DEBUG: Squelch got 0-length name\n");
+	c = (unsigned char) name[0];
+	if (!c) { /* Handle 0-length name; shouldn't happen. */
+		printk(KERN_ALERT "Error - squelch got 0-length name\n");
 		return -EPERM;
 	}
 	if (!test_bit(c, permitted_bytes_initial))
 		return -EPERM;
-	/* Check all characters. TODO: Optimize common cases? */
-	p = name;
+	/* Check all characters. Future: Optimize common cases? */
+	p = (const unsigned char *) name;
         while ((c = *p++) != '\0')
 		if (!test_bit(c, permitted_bytes))
 			return -EPERM;
-	/* Check final character - can't be space. */
-        c = *(p - 1);
-	if (!test_bit(c, permitted_bytes_final))
+	/* Check final character. p is currently one past \0 */
+	if (!test_bit(*(p - 2), permitted_bytes_final))
 		return -EPERM;
 	if (utf8)
 		return (utf8_check(name) == NULL) ? 0 : -EPERM;
-	/* Should we check specially for UTF-8 chars, e.g., UTF-8 spaces? */
-	/* All checks passed, return "no error" */
 	return 0;
 }
 
