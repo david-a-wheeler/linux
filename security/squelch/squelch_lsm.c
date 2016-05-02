@@ -16,40 +16,44 @@
 #include <linux/types.h>
 #include <linux/bitmap.h>
 
-/* For stub auditing */
+/* For reporting */
 #include <linux/ratelimit.h>
 
-/* TODO:
- * Do we actually need the path_... hooks?
- * Do we need to lock the dentry (I don't think so).
- * Full docstrings for functions
- * Byte checks: Optimize loop for common cases.
- * Future: Optionally check filenames on mount.
- * Better reporting mechanism than printk_ratelimited.
- * Namespace - allow per-container control.
- * Optimize filename byte checking loop for common cases?
+/* Questions:
+ * - Do we actually need the path_... hooks?
+ * - Do we need to lock the dentry (I don't think so)?
+ * - Should we change the reporting mechanism from printk_ratelimited?
+ *
+ * Possible future directions:
+ * - Optionally check filenames on mount.
+ * - Possibly optimize byte check loop for common cases.
+ * - Namespace this to allow per-container control.
  */
 
 /* Mode used for unprivileged tasks.  We consider tasks without
  * CAP_SYS_ADMIN as unprivileged.  The mode values are:
- * 0 = not enforced, no audit reports on failed requests
- * 1 = enforced, no audit reports on failed requests
- * 2 = not enforced, audit reports made on failed requests
- * 3 = enforced, audit reports made on failed requests.
- * Default is 0: no enforcement, no audit.
+ * 0 = not enforced, no reports on failed requests.
+ * 1 = enforced, no reports on failed requests.
+ * 2 = not enforced, reports made on failed requests.
+ * 3 = enforced, reports made on failed requests.
+ * Default is 0: no enforcement, no reports.
  */
 static int mode_for_unprivileged;
 
 /* Mode used for privileged tasks.  We consider tasks with
  * CAP_SYS_ADMIN as privileged.  The mode values the same as
  * mode_for_unprivileged.
- * Default is 0: no enforcement, no audit.
+ * Default is 0: no enforcement, no report.
  */
 static int mode_for_privileged;
 
 /* If true, includes a check to see if newly-created filenames are valid UTF-8.
- * Default is 0: Disabled by default. */
+ * Default is 0: Disabled by default.
+ */
 static int utf8;
+
+/* Number of possible values in a char */
+#define POSSIBLE_CHAR 256
 
 /* The following are bitmaps that determine which byte values are permitted.
  * An 'on' bit means that the corresponding byte is permitted in a filename.
@@ -60,9 +64,9 @@ static int utf8;
  * DECLARE_BITMAP is defined in linux/types.h as an array of unsigned longs.
  */
 
-static DECLARE_BITMAP(permitted_bytes_initial, 256);
-static DECLARE_BITMAP(permitted_bytes_middle, 256);
-static DECLARE_BITMAP(permitted_bytes_final, 256);
+static DECLARE_BITMAP(permitted_bytes_initial, POSSIBLE_CHAR);
+static DECLARE_BITMAP(permitted_bytes_middle, POSSIBLE_CHAR);
+static DECLARE_BITMAP(permitted_bytes_final, POSSIBLE_CHAR);
 
 /* Need these for proc_do_large_bitmap */
 unsigned long *permitted_bytes_initial_ptr = permitted_bytes_initial;
@@ -70,12 +74,16 @@ unsigned long *permitted_bytes_middle_ptr = permitted_bytes_middle;
 unsigned long *permitted_bytes_final_ptr = permitted_bytes_final;
 
 /**
- * ut8_check - Returns NULL if string is entirely valid utf8, else returns
- *             pointer to where it fails.
+ * ut8_check - Returns NULL if string is utf8, else returns pointer to failure.
  * @s - string to check.
- * From https://www.cl.cam.ac.uk/~mgk25/ucs/utf8_check.c
- * by Markus Kuhn, released under many licenses incluidng the GPL. See:
- * http://www.cl.cam.ac.uk/~mgk25/short-license.html
+ *
+ * Description:
+ * This function is from https://www.cl.cam.ac.uk/~mgk25/ucs/utf8_check.c
+ * by Markus Kuhn, released as public domain *and* GPL.
+ * See: http://www.cl.cam.ac.uk/~mgk25/short-license.html
+ * checkpatch.pl warns "else is not generally useful after a break or return",
+ * but in this case there's no problem; the returns halt processing once we've
+ * found a failure (and thus we don't need to examine anything further).
  */
 static const char *utf8_check(const char *s)
 {
@@ -120,21 +128,25 @@ static const char *utf8_check(const char *s)
 
 /**
  * squelch_name_check_valid - Return 0 iff given filename valid.
- *  This only checks the name, mode bits are handled elsewhere.
  * @name - filename to check (this is not the entire pathname)
+ *
+ * Description:
+ * Compare filename to all active rules.
+ * This function only checks the name; mode bits are handled elsewhere.
  */
 static int squelch_name_check_valid(const char *name)
 {
 	unsigned char first, c, next; /* Unsigned to index in a bitmask */
 	const unsigned char *p;
+
 	if (!name) { /* Handle null name; shouldn't happen. */
-		printk(KERN_ALERT "Error - squelch got name==NULL\n");
+		pr_alert("Error - squelch got name==NULL\n");
 		return -EPERM;
 	}
 	/* Check first character */
 	first = (unsigned char) name[0];
 	if (!first) { /* Handle 0-length name; shouldn't happen. */
-		printk(KERN_ALERT "Error - squelch got 0-length name\n");
+		pr_alert("Error - squelch got 0-length name\n");
 		return -EPERM;
 	}
 	if (!test_bit(first, permitted_bytes_initial))
@@ -157,7 +169,8 @@ static int squelch_name_check_valid(const char *name)
 		c = next;
 	}
 	/* Check final character. p is currently one past \0.  We can use
-	   "p - 2" because we can only get here if strlen(name) >= 2. */
+	 * "p - 2" because we can only get here if strlen(name) >= 2.
+	 */
 	if (!test_bit(*(p - 2), permitted_bytes_final))
 		return -EPERM;
 	return 0;
@@ -167,20 +180,26 @@ static int squelch_name_check_valid(const char *name)
  * squelch_report - Report that a filename doesn't meet the criteria.
  * @name - filename to check (this is not the entire pathname)
  * @enforcing - if nonzero, we're going to prevent its creation.
- * Be sure to escape name on output, since \n, ESC, etc. could be in name.
- * TODO: Should we use a different reporting mechanism?
+ *
+ * Description:
+ * Report when filename doesn't meet criteria.  If you change this,
+ * be sure to escape its name on output since \n, ESC, etc. could be in name.
  */
 static void squelch_report(const char *name, int enforcing)
 {
-	printk_ratelimited(KERN_INFO "Squelch: Invalid filename %s%*pE\n",
-	  enforcing ? "(creation rejected) " : "",
+	printk_ratelimited(KERN_INFO "Squelch: Invalid filename%s:%*pE\n",
+	  enforcing ? " (creation rejected)" : "",
 	  (int) strlen(name), name);
 }
 
 /**
- * squelch_name_check - Return 0 iff given filename okay,
- *                      handling the mode bits and reporting on failure.
- * @name - filename to check (this is not the entire pathname)
+ * squelch_name_check - Check if name is okay given current mode, report if not.
+ * @name - filename to check (this is NOT the entire pathname)
+ *
+ * Description:
+ * This function checks the mode bits; if we're supposed to enforce or
+ * check, it checks the filename (using squelch_name_check_valid)
+ * This returns 0 iff given name is acceptable as a filename.
  * This function is separate from squelch_dentry_check so that we can
  * check names in the future without a dentry
  * (e.g., if we're checking a filesystem before mounting it
@@ -188,8 +207,8 @@ static void squelch_report(const char *name, int enforcing)
  */
 static int squelch_name_check(const char *name)
 {
-	int mode;
-	int err;
+	int mode, err;
+
 	if (capable(CAP_SYS_ADMIN))
 		mode = mode_for_privileged;
 	else
@@ -206,17 +225,17 @@ static int squelch_name_check(const char *name)
 }
 
 /**
- * squelch_dentry_check - Return 0 if dentry's name is okay.
+ * squelch_dentry_check - Check dentry name; return 0 if okay.
  * @dentry - the dentry to check.
  */
 static int squelch_dentry_check(const struct dentry *dentry)
 {
-	/* TODO: Check - Do we need to lock the dentry, using
+	/* Do we need to lock the dentry, using
 	 * spin_lock(&dentry->d_lock) .. spin_unlock(&dentry->d_lock) ?
 	 * I believe the answer is "no", since the dentries haven't been
 	 * added to the filesystem yet (that's what we're checking for!).
-         * See discussion about getting dentry name (d_name) and %pd here:
-         * thread.gmane.org/gmane.linux-file-systems/37940
+	 * See discussion about getting dentry name (d_name) and %pd here:
+	 * thread.gmane.org/gmane.linux-file-systems/37940
 	 */
 	return squelch_name_check(dentry->d_name.name);
 }
@@ -225,58 +244,55 @@ static int squelch_dentry_check(const struct dentry *dentry)
  * squelch_inode_create - Check squelch rules when it tries to create inode.
  */
 static int squelch_inode_create(struct inode *dir, struct dentry *dentry,
-                                umode_t mode)
+				umode_t mode)
 {
 	return squelch_dentry_check(dentry);
 }
 
-/**
- * squelch_inode_link - Check squelch rules when it tries to create link.
- */
 static int squelch_inode_link(struct dentry *old_dentry, struct inode *dir,
-                              struct dentry *new_dentry)
+			      struct dentry *new_dentry)
 {
 	return squelch_dentry_check(new_dentry);
 }
 
 static int squelch_path_link(struct dentry *old_dentry, struct path *new_dir,
-                             struct dentry *new_dentry)
+			     struct dentry *new_dentry)
 {
 	return squelch_dentry_check(new_dentry);
 }
 
 static int squelch_inode_symlink(struct inode *dir, struct dentry *dentry,
-                                 const char *old_name)
+				 const char *old_name)
 {
 	return squelch_dentry_check(dentry);
 }
 
 static int squelch_path_symlink(struct path *dir, struct dentry *dentry,
-                                const char *old_name)
+				const char *old_name)
 {
 	return squelch_dentry_check(dentry);
 }
 
 static int squelch_inode_mkdir(struct inode *dir, struct dentry *dentry,
-                               umode_t mode)
+			       umode_t mode)
 {
 	return squelch_dentry_check(dentry);
 }
 
 static int squelch_path_mkdir(struct path *dir, struct dentry *dentry,
-                              umode_t mode)
+			      umode_t mode)
 {
 	return squelch_dentry_check(dentry);
 }
 
 static int squelch_inode_mknod(struct inode *dir, struct dentry *dentry,
-                                umode_t mode, dev_t dev)
+			       umode_t mode, dev_t dev)
 {
 	return squelch_dentry_check(dentry);
 }
 
 static int squelch_path_mknod(struct path *dir, struct dentry *dentry,
-                              umode_t mode, unsigned int dev)
+			      umode_t mode, unsigned int dev)
 {
 	return squelch_dentry_check(dentry);
 }
@@ -299,7 +315,7 @@ static int squelch_path_rename(struct path *old_dir, struct dentry *old_dentry,
 }
 
 #ifdef CONFIG_SYSCTL
-static int zero = 0;
+static int zero;
 static int one = 1;
 static int three = 3;
 
@@ -340,21 +356,22 @@ static struct ctl_table squelch_sysctl_table[] = {
 	{
 		.procname       = "permitted_bytes_initial",
 		.data           = &permitted_bytes_initial_ptr,
-		.maxlen         = 256, /* oddly, this API length is in bits */
+		/* proc_do_large_bitmap maxlen is in bits, NOT in bytes. */
+		.maxlen         = POSSIBLE_CHAR,
 		.mode           = 0644,
 		.proc_handler   = proc_do_large_bitmap,
 	},
 	{
 		.procname       = "permitted_bytes_middle",
 		.data           = &permitted_bytes_middle_ptr,
-		.maxlen         = 256,
+		.maxlen         = POSSIBLE_CHAR,
 		.mode           = 0644,
 		.proc_handler   = proc_do_large_bitmap,
 	},
 	{
 		.procname       = "permitted_bytes_final",
 		.data           = &permitted_bytes_final_ptr,
-		.maxlen         = 256,
+		.maxlen         = POSSIBLE_CHAR,
 		.mode           = 0644,
 		.proc_handler   = proc_do_large_bitmap,
 	},
@@ -370,38 +387,42 @@ static void __init squelch_init_sysctl(void)
 static inline void squelch_init_sysctl(void) { }
 #endif /* CONFIG_SYSCTL */
 
-/* squelch_init_bitmasks - initialize
- *   permitted_bytes_initial, permitted_bytes_middle, and permitted_bytes_final.
- *   We do this at run-time for clarity; these bit manipulations are quick,
- *   so there's not a great advantage in doing this at compile time.
+/**
+ * squelch_init_bitmasks - initialize bitmasks needed by squelch.
+ *
+ * Description:
+ * Initialize permitted_bytes_initial, permitted_bytes_middle,
+ * and permitted_bytes_final.
+ * We do this at run-time for clarity; these bit manipulations are quick,
+ * and take little space in code, so there's no great advantage
+ * in doing this at compile time.
  */
 static void squelch_init_bitmasks(void)
 {
-     /* Start with permitting the bytes ' '..0x7e and 0x80..0xfe.
-      * This omits control chars, 0x7f (DEL), and 0xff (part of FFFE). */
-     bitmap_set(permitted_bytes_middle, (int) ' ', 0x7e - (int) ' ' + 1);
-     bitmap_set(permitted_bytes_initial, (int) ' ', 0x7e - (int) ' ' + 1);
-     bitmap_set(permitted_bytes_final, (int) ' ', 0x7e - (int) ' ' + 1);
+	bitmap_set(permitted_bytes_middle, (int) ' ', 0x7e - (int) ' ' + 1);
+	bitmap_set(permitted_bytes_initial, (int) ' ', 0x7e - (int) ' ' + 1);
+	bitmap_set(permitted_bytes_final, (int) ' ', 0x7e - (int) ' ' + 1);
 
-     bitmap_set(permitted_bytes_middle, 0x80, 0xfe - 0x80 + 1);
-     bitmap_set(permitted_bytes_initial, 0x80, 0xfe - 0x80 + 1);
-     bitmap_set(permitted_bytes_final, 0x80, 0xfe - 0x80 + 1);
+	bitmap_set(permitted_bytes_middle, 0x80, 0xfe - 0x80 + 1);
+	bitmap_set(permitted_bytes_initial, 0x80, 0xfe - 0x80 + 1);
+	bitmap_set(permitted_bytes_final, 0x80, 0xfe - 0x80 + 1);
 
-     /* Forbid '-', ' ', and '~' as initial values. */
-     bitmap_clear(permitted_bytes_initial, (int) '-', 1);
-     bitmap_clear(permitted_bytes_initial, (int) ' ', 1);
-     bitmap_clear(permitted_bytes_initial, (int) '~', 1);
+	/* Forbid '-', ' ', and '~' as initial values. */
+	bitmap_clear(permitted_bytes_initial, (int) '-', 1);
+	bitmap_clear(permitted_bytes_initial, (int) ' ', 1);
+	bitmap_clear(permitted_bytes_initial, (int) '~', 1);
 
-     /* Forbid ' ' as final value. */
-     bitmap_clear(permitted_bytes_final, (int) ' ', 1);
+	/* Forbid ' ' as final value. */
+	bitmap_clear(permitted_bytes_final, (int) ' ', 1);
 }
 
 /* NOTE: Many hooks have both an inode_... and path_... version.
- * For the moment, to be sure we get all cases, we intercept both.
- * I suspect we only need the inode_... versions.
- * Comments to confirm/deny this would be welcome!
+ * To be sure we get all cases, we intercept both.
+ * I suspect we only need the inode_... versions;
+ * comments to confirm/deny this would be welcome!
  * If we don't need *any* of the path_... hooks, we could drop
- * SECURITY_PATH from the Kconfig file for this module. */
+ * SECURITY_PATH from the Kconfig file for this module.
+ */
 
 static struct security_hook_list squelch_hooks[] = {
 	LSM_HOOK_INIT(inode_create, squelch_inode_create),
@@ -418,11 +439,14 @@ static struct security_hook_list squelch_hooks[] = {
 };
 
 
+/**
+ * squelch_add_hooks - initialize squelch
+ */
 void __init squelch_add_hooks(void)
 {
 	pr_info("Squelch: Preventing the creation of malicious filenames.\n");
-	printk(KERN_ALERT "DEBUG: Squelch starting up\n");
-        squelch_init_bitmasks();
+	pr_alert("DEBUG: Squelch starting up\n"); /* TODO: Remove... */
+	squelch_init_bitmasks();
 	security_add_hooks(squelch_hooks, ARRAY_SIZE(squelch_hooks));
 	squelch_init_sysctl();
 }

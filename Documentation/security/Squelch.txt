@@ -72,17 +72,17 @@ This module's functions can be configured via "/proc/sys/kernel/squelch/".
 Within that directory there are the following configuration values:
 
 * mode_for_unprivileged: Mode used for unprivileged tasks (0..3).
-  We consider tasks without CAP_SYS_ADMIN as unprivileged.
+  We consider tasks unpriviliged if they lack capability CAP_SYS_ADMIN.
   The allowed mode values are:
-  * 0 = not enforced, no audit reports on failed requests
-  * 1 = enforced, no audit reports on failed requests
-  * 2 = not enforced, audit reports made on failed requests
-  * 3 = enforced, audit reports made on failed requests.
-  Default is 0: no enforcement, no audit.
+  * 0 = not enforced, no reports on failed requests.
+  * 1 = enforced, no reports on failed requests.
+  * 2 = not enforced, reports made on failed requests.
+  * 3 = enforced, reports made on failed requests.
+  Default is 0: no enforcement, no report.
 * mode_for_privileged: Mode used for unprivileged tasks (0..3).
-  We consider tasks with CAP_SYS_ADMIN as privileged.
+  We consider tasks privileged if they have capability CAP_SYS_ADMIN.
   The mode values the same as mode_for_unprivileged.
-  Default is 0: no enforcement, no audit.
+  Default is 0: no enforcement, no report.
 * utf8: If true, include a check to see if filenames are valid UTF-8 (0..1).
   Default is 0: Do not check.
 * permitted_bytes_initial: The set of bytes allowed as the first
