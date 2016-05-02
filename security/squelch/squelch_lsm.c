@@ -119,10 +119,11 @@ static const char *utf8_check(const char *s)
 }
 
 /**
- * squelch_name_check_details - Return 0 iff given filename okay
+ * squelch_name_check_valid - Return 0 iff given filename valid.
+ *  This only checks the name, mode bits are handled elsewhere.
  * @name - filename to check (this is not the entire pathname)
  */
-static int squelch_name_check_details(const char *name)
+static int squelch_name_check_valid(const char *name)
 {
 	unsigned char first, c, next; /* Unsigned to index in a bitmask */
 	const unsigned char *p;
@@ -163,9 +164,10 @@ static int squelch_name_check_details(const char *name)
 }
 
 /**
- * squelch_report - Report that a filename doesn't meet the creteria.
+ * squelch_report - Report that a filename doesn't meet the criteria.
  * @name - filename to check (this is not the entire pathname)
  * @enforcing - if nonzero, we're going to prevent its creation.
+ * Be sure to escape name on output, since \n, ESC, etc. could be in name.
  * TODO: Should we use a different reporting mechanism?
  */
 static void squelch_report(const char *name, int enforcing)
@@ -177,8 +179,12 @@ static void squelch_report(const char *name, int enforcing)
 
 /**
  * squelch_name_check - Return 0 iff given filename okay,
- *                      checking and handling the mode bits.
+ *                      handling the mode bits and reporting on failure.
  * @name - filename to check (this is not the entire pathname)
+ * This function is separate from squelch_dentry_check so that we can
+ * check names in the future without a dentry
+ * (e.g., if we're checking a filesystem before mounting it
+ * and don't want to create dentries while traversing it).
  */
 static int squelch_name_check(const char *name)
 {
@@ -191,8 +197,7 @@ static int squelch_name_check(const char *name)
 	/* Don't do any work if it's not needed. */
 	if (!mode)
 		return 0;
-	err = squelch_name_check_details(name);
-	/* TODO: Better audit reporting. Be sure to escape name on output. */
+	err = squelch_name_check_valid(name);
 	if (err && (mode & 0x02))
 		squelch_report(name, mode & 0x01);
 	if (mode & 0x01)
