@@ -55,20 +55,19 @@ static int utf8;
  * An 'on' bit means that the corresponding byte is permitted in a filename.
  * A filename's initial byte must be permitted by permitted_bytes_initial,
  * its final byte must be permitted by permitted_bytes_final,
- * and all bytes (including first and final) must be permitted
- * by permitted_bytes.
+ * and all other bytes must be permitted by permitted_bytes_middle.
  *
  * DECLARE_BITMAP is defined in linux/types.h as an array of unsigned longs.
  */
 
 static DECLARE_BITMAP(permitted_bytes_initial, 256);
+static DECLARE_BITMAP(permitted_bytes_middle, 256);
 static DECLARE_BITMAP(permitted_bytes_final, 256);
-static DECLARE_BITMAP(permitted_bytes, 256);
 
 /* Need these for proc_do_large_bitmap */
 unsigned long *permitted_bytes_initial_ptr = permitted_bytes_initial;
+unsigned long *permitted_bytes_middle_ptr = permitted_bytes_middle;
 unsigned long *permitted_bytes_final_ptr = permitted_bytes_final;
-unsigned long *permitted_bytes_ptr = permitted_bytes;
 
 /**
  * ut8_check - Returns NULL if string is entirely valid utf8, else returns
@@ -125,29 +124,41 @@ static const char *utf8_check(const char *s)
  */
 static int squelch_name_check_details(const char *name)
 {
-	unsigned char c; /* Unsigned to correctly index in a bitmask */
+	unsigned char first, c, next; /* Unsigned to index in a bitmask */
 	const unsigned char *p;
 	if (!name) { /* Handle null name; shouldn't happen. */
 		printk(KERN_ALERT "Error - squelch got name==NULL\n");
 		return -EPERM;
 	}
-	c = (unsigned char) name[0];
-	if (!c) { /* Handle 0-length name; shouldn't happen. */
+	/* Check first character */
+	first = (unsigned char) name[0];
+	if (!first) { /* Handle 0-length name; shouldn't happen. */
 		printk(KERN_ALERT "Error - squelch got 0-length name\n");
 		return -EPERM;
 	}
-	if (!test_bit(c, permitted_bytes_initial))
+	if (!test_bit(first, permitted_bytes_initial))
 		return -EPERM;
-	/* Check all characters. Future: Optimize common cases? */
-	p = (const unsigned char *) name;
-        while ((c = *p++) != '\0')
-		if (!test_bit(c, permitted_bytes))
+	if (utf8 && !utf8_check(name))
+		return -EPERM;
+	/* Check rest of characters. Future: Optimize common cases? */
+	p = ((const unsigned char *) name) + 1;
+	c = *p++;
+	if (!c) /* Special case: first character is also last character */
+		return test_bit(first, permitted_bytes_final) ? 0 : -EPERM;
+	/* Examine the rest of the characters EXCEPT the last one */
+	while (1) {
+		/* At start of loop, p points one *past* current char c */
+		next = *p++;
+		if (!next)
+			break;
+		if (!test_bit(c, permitted_bytes_middle))
 			return -EPERM;
-	/* Check final character. p is currently one past \0 */
+		c = next;
+	}
+	/* Check final character. p is currently one past \0.  We can use
+	   "p - 2" because we can only get here if strlen(name) >= 2. */
 	if (!test_bit(*(p - 2), permitted_bytes_final))
 		return -EPERM;
-	if (utf8)
-		return (utf8_check(name) == NULL) ? 0 : -EPERM;
 	return 0;
 }
 
@@ -329,40 +340,18 @@ static struct ctl_table squelch_sysctl_table[] = {
 		.proc_handler   = proc_do_large_bitmap,
 	},
 	{
+		.procname       = "permitted_bytes_middle",
+		.data           = &permitted_bytes_middle_ptr,
+		.maxlen         = 256,
+		.mode           = 0644,
+		.proc_handler   = proc_do_large_bitmap,
+	},
+	{
 		.procname       = "permitted_bytes_final",
 		.data           = &permitted_bytes_final_ptr,
 		.maxlen         = 256,
 		.mode           = 0644,
 		.proc_handler   = proc_do_large_bitmap,
-	},
-	{
-		.procname       = "permitted_bytes",
-		.data           = &permitted_bytes_ptr,
-		.maxlen         = 256,
-		.mode           = 0644,
-		.proc_handler   = proc_do_large_bitmap,
-	},
-	/* TODO: TEMPORARY: Let us access the bitvec structure differently */
-	{
-		.procname       = "permitted_bytes_initial_as_intvec",
-		.data           = &permitted_bytes_initial,
-		.maxlen         = sizeof(permitted_bytes_initial),
-		.mode           = 0644,
-		.proc_handler   = proc_dointvec,
-	},
-	{
-		.procname       = "permitted_bytes_final_as_intvec",
-		.data           = &permitted_bytes_final,
-		.maxlen         = sizeof(permitted_bytes_final),
-		.mode           = 0644,
-		.proc_handler   = proc_dointvec,
-	},
-	{
-		.procname       = "permitted_bytes_as_intvec",
-		.data           = &permitted_bytes,
-		.maxlen         = sizeof(permitted_bytes),
-		.mode           = 0644,
-		.proc_handler   = proc_dointvec,
 	},
 	{ }
 };
@@ -377,19 +366,19 @@ static inline void squelch_init_sysctl(void) { }
 #endif /* CONFIG_SYSCTL */
 
 /* squelch_init_bitmasks - initialize
- *   permitted_bytes_initial, permitted_bytes_final, and permitted_bytes.
+ *   permitted_bytes_initial, permitted_bytes_middle, and permitted_bytes_final.
  *   We do this at run-time for clarity; these bit manipulations are quick,
  *   so there's not a great advantage in doing this at compile time.
  */
 static void squelch_init_bitmasks(void)
 {
-     /* Permitted bytes allows ' '..0x7e and 0x80..0xfe.
-      * This omits control chars, 0x7f (DEL), and 0xff. */
-     bitmap_set(permitted_bytes, (int) ' ', 0x7e - (int) ' ' + 1);
+     /* Start with permitting the bytes ' '..0x7e and 0x80..0xfe.
+      * This omits control chars, 0x7f (DEL), and 0xff (part of FFFE). */
+     bitmap_set(permitted_bytes_middle, (int) ' ', 0x7e - (int) ' ' + 1);
      bitmap_set(permitted_bytes_initial, (int) ' ', 0x7e - (int) ' ' + 1);
      bitmap_set(permitted_bytes_final, (int) ' ', 0x7e - (int) ' ' + 1);
 
-     bitmap_set(permitted_bytes, 0x80, 0xfe - 0x80 + 1);
+     bitmap_set(permitted_bytes_middle, 0x80, 0xfe - 0x80 + 1);
      bitmap_set(permitted_bytes_initial, 0x80, 0xfe - 0x80 + 1);
      bitmap_set(permitted_bytes_final, 0x80, 0xfe - 0x80 + 1);
 
