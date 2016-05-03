@@ -20,7 +20,6 @@
 #include <linux/ratelimit.h>
 
 /* Questions:
- * - Do we actually need the path_... hooks?
  * - Do we need to lock the dentry (I don't think so)?
  * - Should we change the reporting mechanism from printk_ratelimited?
  *
