@@ -1,7 +1,6 @@
 config SECURITY_SAFENAME
 	bool "Safename support"
 	depends on SECURITY
-	select SECURITY_PATH
 	default n
 	help
 	  This selects Safename, which restricts what filenames can be created

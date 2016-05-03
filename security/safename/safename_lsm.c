@@ -255,20 +255,8 @@ static int safename_inode_link(struct dentry *old_dentry, struct inode *dir,
 	return safename_dentry_check(new_dentry);
 }
 
-static int safename_path_link(struct dentry *old_dentry, struct path *new_dir,
-			     struct dentry *new_dentry)
-{
-	return safename_dentry_check(new_dentry);
-}
-
 static int safename_inode_symlink(struct inode *dir, struct dentry *dentry,
 				 const char *old_name)
-{
-	return safename_dentry_check(dentry);
-}
-
-static int safename_path_symlink(struct path *dir, struct dentry *dentry,
-				const char *old_name)
 {
 	return safename_dentry_check(dentry);
 }
@@ -279,37 +267,16 @@ static int safename_inode_mkdir(struct inode *dir, struct dentry *dentry,
 	return safename_dentry_check(dentry);
 }
 
-static int safename_path_mkdir(struct path *dir, struct dentry *dentry,
-			      umode_t mode)
-{
-	return safename_dentry_check(dentry);
-}
-
 static int safename_inode_mknod(struct inode *dir, struct dentry *dentry,
 			       umode_t mode, dev_t dev)
 {
 	return safename_dentry_check(dentry);
 }
 
-static int safename_path_mknod(struct path *dir, struct dentry *dentry,
-			      umode_t mode, unsigned int dev)
-{
-	return safename_dentry_check(dentry);
-}
-
-
-
 static int safename_inode_rename(struct inode *old_dir,
 				struct dentry *old_dentry,
 				struct inode *new_dir,
 				struct dentry *new_dentry)
-{
-	return safename_dentry_check(new_dentry);
-}
-
-static int safename_path_rename(struct path *old_dir, struct dentry *old_dentry,
-			       struct path *new_dir,
-			       struct dentry *new_dentry)
 {
 	return safename_dentry_check(new_dentry);
 }
@@ -416,26 +383,13 @@ static void safename_init_bitmasks(void)
 	bitmap_clear(permitted_bytes_final, (int) ' ', 1);
 }
 
-/* NOTE: Many hooks have both an inode_... and path_... version.
- * To be sure we get all cases, we intercept both.
- * I suspect we only need the inode_... versions;
- * comments to confirm/deny this would be welcome!
- * If we don't need *any* of the path_... hooks, we could drop
- * SECURITY_PATH from the Kconfig file for this module.
- */
-
 static struct security_hook_list safename_hooks[] = {
 	LSM_HOOK_INIT(inode_create, safename_inode_create),
 	LSM_HOOK_INIT(inode_link, safename_inode_link),
-	LSM_HOOK_INIT(path_link, safename_path_link),
 	LSM_HOOK_INIT(inode_symlink, safename_inode_symlink),
-	LSM_HOOK_INIT(path_symlink, safename_path_symlink),
 	LSM_HOOK_INIT(inode_mkdir, safename_inode_mkdir),
-	LSM_HOOK_INIT(path_mkdir, safename_path_mkdir),
 	LSM_HOOK_INIT(inode_mknod, safename_inode_mknod),
-	LSM_HOOK_INIT(path_mknod, safename_path_mknod),
 	LSM_HOOK_INIT(inode_rename, safename_inode_rename),
-	LSM_HOOK_INIT(path_rename, safename_path_rename),
 };
 
 
