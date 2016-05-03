@@ -398,7 +398,6 @@ static struct security_hook_list safename_hooks[] = {
 void __init safename_add_hooks(void)
 {
 	pr_info("Safename: Preventing the creation of malicious filenames.\n");
-	pr_alert("DEBUG: Safename starting up\n"); /* TODO: Remove... */
 	safename_init_bitmasks();
 	security_add_hooks(safename_hooks, ARRAY_SIZE(safename_hooks));
 	safename_init_sysctl();
