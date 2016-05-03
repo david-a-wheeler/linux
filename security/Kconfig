@@ -123,7 +123,7 @@ source security/smack/Kconfig
 source security/tomoyo/Kconfig
 source security/apparmor/Kconfig
 source security/yama/Kconfig
-source security/squelch/Kconfig
+source security/safename/Kconfig
 
 source security/integrity/Kconfig
 

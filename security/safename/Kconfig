@@ -1,10 +1,10 @@
-config SECURITY_SQUELCH
-	bool "Squelch support"
+config SECURITY_SAFENAME
+	bool "Safename support"
 	depends on SECURITY
 	select SECURITY_PATH
 	default n
 	help
-	  This selects Squelch, which restricts what filenames can be created
+	  This selects Safename, which restricts what filenames can be created
 	  (e.g., it can prevent creation of filenames with control characters,
 	  beginning with dash, or ones that are not UTF-8).
 	  This can be used as a hardening measure to counter certain
@@ -14,6 +14,6 @@ config SECURITY_SQUELCH
 	  For a general discussion of the problem, see:
 	  http://www.dwheeler.com/essays/fixing-unix-linux-filenames.html
 	  Further information can be found in
-	  Documentation/security/Squelch.txt.
+	  Documentation/security/Safename.txt.
 
 	  If you are unsure how to answer this question, answer N.

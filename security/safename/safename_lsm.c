@@ -1,5 +1,5 @@
 /*
- * Squelch Linux Security Module
+ * Safename Linux Security Module
  *
  * Author: David A. Wheeler <dwheeler@dwheeler.com>
  *
@@ -127,26 +127,26 @@ static const char *utf8_check(const char *s)
 }
 
 /**
- * squelch_name_check_valid - Return 0 iff given filename valid.
+ * safename_name_check_valid - Return 0 iff given filename valid.
  * @name - filename to check (this is not the entire pathname)
  *
  * Description:
  * Compare filename to all active rules.
  * This function only checks the name; mode bits are handled elsewhere.
  */
-static int squelch_name_check_valid(const char *name)
+static int safename_name_check_valid(const char *name)
 {
 	unsigned char first, c, next; /* Unsigned to index in a bitmask */
 	const unsigned char *p;
 
 	if (!name) { /* Handle null name; shouldn't happen. */
-		pr_alert("Error - squelch got name==NULL\n");
+		pr_alert("Error - safename got name==NULL\n");
 		return -EPERM;
 	}
 	/* Check first character */
 	first = (unsigned char) name[0];
 	if (!first) { /* Handle 0-length name; shouldn't happen. */
-		pr_alert("Error - squelch got 0-length name\n");
+		pr_alert("Error - safename got 0-length name\n");
 		return -EPERM;
 	}
 	if (!test_bit(first, permitted_bytes_initial))
@@ -177,7 +177,7 @@ static int squelch_name_check_valid(const char *name)
 }
 
 /**
- * squelch_report - Report that a filename doesn't meet the criteria.
+ * safename_report - Report that a filename doesn't meet the criteria.
  * @name - filename to check (this is not the entire pathname)
  * @enforcing - if nonzero, we're going to prevent its creation.
  *
@@ -185,27 +185,27 @@ static int squelch_name_check_valid(const char *name)
  * Report when filename doesn't meet criteria.  If you change this,
  * be sure to escape its name on output since \n, ESC, etc. could be in name.
  */
-static void squelch_report(const char *name, int enforcing)
+static void safename_report(const char *name, int enforcing)
 {
-	printk_ratelimited(KERN_INFO "Squelch: Invalid filename%s:%*pE\n",
+	printk_ratelimited(KERN_INFO "Safename: Invalid filename%s:%*pE\n",
 	  enforcing ? " (creation rejected)" : "",
 	  (int) strlen(name), name);
 }
 
 /**
- * squelch_name_check - Check if name is okay given current mode, report if not.
+ * safename_name_check - Depending on mode, check name and report if not okay.
  * @name - filename to check (this is NOT the entire pathname)
  *
  * Description:
  * This function checks the mode bits; if we're supposed to enforce or
- * check, it checks the filename (using squelch_name_check_valid)
+ * check, it checks the filename (using safename_name_check_valid)
  * This returns 0 iff given name is acceptable as a filename.
- * This function is separate from squelch_dentry_check so that we can
+ * This function is separate from safename_dentry_check so that we can
  * check names in the future without a dentry
  * (e.g., if we're checking a filesystem before mounting it
  * and don't want to create dentries while traversing it).
  */
-static int squelch_name_check(const char *name)
+static int safename_name_check(const char *name)
 {
 	int mode, err;
 
@@ -216,19 +216,19 @@ static int squelch_name_check(const char *name)
 	/* Don't do any work if it's not needed. */
 	if (!mode)
 		return 0;
-	err = squelch_name_check_valid(name);
+	err = safename_name_check_valid(name);
 	if (err && (mode & 0x02))
-		squelch_report(name, mode & 0x01);
+		safename_report(name, mode & 0x01);
 	if (mode & 0x01)
 		return err;
 	return 0;
 }
 
 /**
- * squelch_dentry_check - Check dentry name; return 0 if okay.
+ * safename_dentry_check - Check dentry name; return 0 if okay.
  * @dentry - the dentry to check.
  */
-static int squelch_dentry_check(const struct dentry *dentry)
+static int safename_dentry_check(const struct dentry *dentry)
 {
 	/* Do we need to lock the dentry, using
 	 * spin_lock(&dentry->d_lock) .. spin_unlock(&dentry->d_lock) ?
@@ -237,81 +237,81 @@ static int squelch_dentry_check(const struct dentry *dentry)
 	 * See discussion about getting dentry name (d_name) and %pd here:
 	 * thread.gmane.org/gmane.linux-file-systems/37940
 	 */
-	return squelch_name_check(dentry->d_name.name);
+	return safename_name_check(dentry->d_name.name);
 }
 
 /**
- * squelch_inode_create - Check squelch rules when it tries to create inode.
+ * safename_inode_create - Check safename rules when it tries to create inode.
  */
-static int squelch_inode_create(struct inode *dir, struct dentry *dentry,
+static int safename_inode_create(struct inode *dir, struct dentry *dentry,
 				umode_t mode)
 {
-	return squelch_dentry_check(dentry);
+	return safename_dentry_check(dentry);
 }
 
-static int squelch_inode_link(struct dentry *old_dentry, struct inode *dir,
+static int safename_inode_link(struct dentry *old_dentry, struct inode *dir,
 			      struct dentry *new_dentry)
 {
-	return squelch_dentry_check(new_dentry);
+	return safename_dentry_check(new_dentry);
 }
 
-static int squelch_path_link(struct dentry *old_dentry, struct path *new_dir,
+static int safename_path_link(struct dentry *old_dentry, struct path *new_dir,
 			     struct dentry *new_dentry)
 {
-	return squelch_dentry_check(new_dentry);
+	return safename_dentry_check(new_dentry);
 }
 
-static int squelch_inode_symlink(struct inode *dir, struct dentry *dentry,
+static int safename_inode_symlink(struct inode *dir, struct dentry *dentry,
 				 const char *old_name)
 {
-	return squelch_dentry_check(dentry);
+	return safename_dentry_check(dentry);
 }
 
-static int squelch_path_symlink(struct path *dir, struct dentry *dentry,
+static int safename_path_symlink(struct path *dir, struct dentry *dentry,
 				const char *old_name)
 {
-	return squelch_dentry_check(dentry);
+	return safename_dentry_check(dentry);
 }
 
-static int squelch_inode_mkdir(struct inode *dir, struct dentry *dentry,
+static int safename_inode_mkdir(struct inode *dir, struct dentry *dentry,
 			       umode_t mode)
 {
-	return squelch_dentry_check(dentry);
+	return safename_dentry_check(dentry);
 }
 
-static int squelch_path_mkdir(struct path *dir, struct dentry *dentry,
+static int safename_path_mkdir(struct path *dir, struct dentry *dentry,
 			      umode_t mode)
 {
-	return squelch_dentry_check(dentry);
+	return safename_dentry_check(dentry);
 }
 
-static int squelch_inode_mknod(struct inode *dir, struct dentry *dentry,
+static int safename_inode_mknod(struct inode *dir, struct dentry *dentry,
 			       umode_t mode, dev_t dev)
 {
-	return squelch_dentry_check(dentry);
+	return safename_dentry_check(dentry);
 }
 
-static int squelch_path_mknod(struct path *dir, struct dentry *dentry,
+static int safename_path_mknod(struct path *dir, struct dentry *dentry,
 			      umode_t mode, unsigned int dev)
 {
-	return squelch_dentry_check(dentry);
+	return safename_dentry_check(dentry);
 }
 
 
 
-static int squelch_inode_rename(struct inode *old_dir,
+static int safename_inode_rename(struct inode *old_dir,
 				struct dentry *old_dentry,
 				struct inode *new_dir,
 				struct dentry *new_dentry)
 {
-	return squelch_dentry_check(new_dentry);
+	return safename_dentry_check(new_dentry);
 }
 
-static int squelch_path_rename(struct path *old_dir, struct dentry *old_dentry,
+static int safename_path_rename(struct path *old_dir, struct dentry *old_dentry,
 			       struct path *new_dir,
 			       struct dentry *new_dentry)
 {
-	return squelch_dentry_check(new_dentry);
+	return safename_dentry_check(new_dentry);
 }
 
 #ifdef CONFIG_SYSCTL
@@ -319,13 +319,13 @@ static int zero;
 static int one = 1;
 static int three = 3;
 
-struct ctl_path squelch_sysctl_path[] = {
+struct ctl_path safename_sysctl_path[] = {
 	{ .procname = "kernel", },
-	{ .procname = "squelch", },
+	{ .procname = "safename", },
 	{ }
 };
 
-static struct ctl_table squelch_sysctl_table[] = {
+static struct ctl_table safename_sysctl_table[] = {
 	{
 		.procname       = "mode_for_unprivileged",
 		.data           = &mode_for_unprivileged,
@@ -378,17 +378,17 @@ static struct ctl_table squelch_sysctl_table[] = {
 	{ }
 };
 
-static void __init squelch_init_sysctl(void)
+static void __init safename_init_sysctl(void)
 {
-	if (!register_sysctl_paths(squelch_sysctl_path, squelch_sysctl_table))
-		panic("Squelch: sysctl registration failed.\n");
+	if (!register_sysctl_paths(safename_sysctl_path, safename_sysctl_table))
+		panic("Safename: sysctl registration failed.\n");
 }
 #else
-static inline void squelch_init_sysctl(void) { }
+static inline void safename_init_sysctl(void) { }
 #endif /* CONFIG_SYSCTL */
 
 /**
- * squelch_init_bitmasks - initialize bitmasks needed by squelch.
+ * safename_init_bitmasks - initialize bitmasks needed by safename.
  *
  * Description:
  * Initialize permitted_bytes_initial, permitted_bytes_middle,
@@ -397,7 +397,7 @@ static inline void squelch_init_sysctl(void) { }
  * and take little space in code, so there's no great advantage
  * in doing this at compile time.
  */
-static void squelch_init_bitmasks(void)
+static void safename_init_bitmasks(void)
 {
 	bitmap_set(permitted_bytes_middle, (int) ' ', 0x7e - (int) ' ' + 1);
 	bitmap_set(permitted_bytes_initial, (int) ' ', 0x7e - (int) ' ' + 1);
@@ -424,29 +424,29 @@ static void squelch_init_bitmasks(void)
  * SECURITY_PATH from the Kconfig file for this module.
  */
 
-static struct security_hook_list squelch_hooks[] = {
-	LSM_HOOK_INIT(inode_create, squelch_inode_create),
-	LSM_HOOK_INIT(inode_link, squelch_inode_link),
-	LSM_HOOK_INIT(path_link, squelch_path_link),
-	LSM_HOOK_INIT(inode_symlink, squelch_inode_symlink),
-	LSM_HOOK_INIT(path_symlink, squelch_path_symlink),
-	LSM_HOOK_INIT(inode_mkdir, squelch_inode_mkdir),
-	LSM_HOOK_INIT(path_mkdir, squelch_path_mkdir),
-	LSM_HOOK_INIT(inode_mknod, squelch_inode_mknod),
-	LSM_HOOK_INIT(path_mknod, squelch_path_mknod),
-	LSM_HOOK_INIT(inode_rename, squelch_inode_rename),
-	LSM_HOOK_INIT(path_rename, squelch_path_rename),
+static struct security_hook_list safename_hooks[] = {
+	LSM_HOOK_INIT(inode_create, safename_inode_create),
+	LSM_HOOK_INIT(inode_link, safename_inode_link),
+	LSM_HOOK_INIT(path_link, safename_path_link),
+	LSM_HOOK_INIT(inode_symlink, safename_inode_symlink),
+	LSM_HOOK_INIT(path_symlink, safename_path_symlink),
+	LSM_HOOK_INIT(inode_mkdir, safename_inode_mkdir),
+	LSM_HOOK_INIT(path_mkdir, safename_path_mkdir),
+	LSM_HOOK_INIT(inode_mknod, safename_inode_mknod),
+	LSM_HOOK_INIT(path_mknod, safename_path_mknod),
+	LSM_HOOK_INIT(inode_rename, safename_inode_rename),
+	LSM_HOOK_INIT(path_rename, safename_path_rename),
 };
 
 
 /**
- * squelch_add_hooks - initialize squelch
+ * safename_add_hooks - initialize safename
  */
-void __init squelch_add_hooks(void)
+void __init safename_add_hooks(void)
 {
-	pr_info("Squelch: Preventing the creation of malicious filenames.\n");
-	pr_alert("DEBUG: Squelch starting up\n"); /* TODO: Remove... */
-	squelch_init_bitmasks();
-	security_add_hooks(squelch_hooks, ARRAY_SIZE(squelch_hooks));
-	squelch_init_sysctl();
+	pr_info("Safename: Preventing the creation of malicious filenames.\n");
+	pr_alert("DEBUG: Safename starting up\n"); /* TODO: Remove... */
+	safename_init_bitmasks();
+	security_add_hooks(safename_hooks, ARRAY_SIZE(safename_hooks));
+	safename_init_sysctl();
 }
