@@ -150,7 +150,7 @@ static int safename_name_check_valid(const char *name)
 	}
 	if (!test_bit(first, permitted_bytes_initial))
 		return -EPERM;
-	if (utf8 && !utf8_check(name))
+	if (utf8 && utf8_check(name))
 		return -EPERM;
 	/* Check rest of characters. Future: Optimize common cases? */
 	p = ((const unsigned char *) name) + 1;
