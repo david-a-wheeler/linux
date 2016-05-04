@@ -48,13 +48,24 @@ Safename can be useful as a security hardening mechanism.
 
 This module addresses three different cases, where
 "privileged" means "has CAP_SYS_ADMIN":
-1. A non-malicious unprivileged application is tricked by an
+1. A malicious untrusted user or application directly
+   creates a malicious filename.
+   Later user commands or code (privileged or not) then
+   cause the filename to be misinterpreted and lead to an exploit
+   Examples of these circumstances include another application
+   on the device and an administrative script trying to
+   manage a virtual machine or container.
+   Examples of incorrect code or scripts include any construct (e.g., pipes)
+   that separate/terminate each filename in a list with a newline
+   (since filenames can contain newlines), a glob beginning with "*" or "?"
+   (since these can expand into "-" and be misinterpreted as options),
+   and displaying filenames (they may include escape sequences or
+   non-UTF-8 sequences).  This problem *cannot* be fixed in userspace;
+   countering these attacks requires a countermeasure in the kernel.
+2. A non-malicious unprivileged application is tricked by an
    attacker into creating a malicious filename. Later errors in some code
    (privileged or not) cause the filename to be misinterpreted and
    lead to an exploit.
-2. A malicious untrusted user directly creates a malicious filename.
-   Again, later errors in some code (privileged or not)
-   cause the filename to be misinterpreted and lead to an exploit.
 3. Like #1, but a *privileged* application
    is tricked into creating a malicious filename, which later leads to
    an exploit.  For this case, you need to prevent privileged processes
