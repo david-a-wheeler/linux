@@ -9980,8 +9980,9 @@ F:	security/yama/
 SAFENAME SECURITY MODULE
 M:	David A. Wheeler <David A. Wheeler>
 T:	git https://github.com/david-a-wheeler/linux.git safename/tip
-S:	Supported
+S:	Maintained
 F:	security/safename/
+F:	Documentation/security/Safename.txt
 
 SENSABLE PHANTOM
 M:	Jiri Slaby <jirislaby@gmail.com>
