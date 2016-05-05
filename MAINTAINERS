@@ -9977,6 +9977,13 @@ T:	git git://git.kernel.org/pub/scm/linux/kernel/git/kees/linux.git yama/tip
 S:	Supported
 F:	security/yama/
 
+SAFENAME SECURITY MODULE
+M:	David A. Wheeler <David A. Wheeler>
+T:	git https://github.com/david-a-wheeler/linux.git safename/tip
+S:	Maintained
+F:	security/safename/
+F:	Documentation/security/Safename.txt
+
 SENSABLE PHANTOM
 M:	Jiri Slaby <jirislaby@gmail.com>
 S:	Maintained

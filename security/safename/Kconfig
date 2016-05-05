@@ -1,0 +1,18 @@
+config SECURITY_SAFENAME
+	bool "Safename support"
+	depends on SECURITY
+	default n
+	help
+	  This selects Safename, which restricts what filenames can be created
+	  (e.g., it can prevent creation of filenames with control characters,
+	  beginning with dash, or ones that are not UTF-8).
+	  This can be used as a hardening measure to counter certain
+	  kinds of attacks.  You should still write code that handles
+	  these unusual filenames correctly, but until all incorrect
+	  code stops getting written, this hardening mechanism can be useful.
+	  For a general discussion of the problem, see:
+	  http://www.dwheeler.com/essays/fixing-unix-linux-filenames.html
+	  Further information can be found in
+	  Documentation/security/Safename.txt.
+
+	  If you are unsure how to answer this question, answer N.

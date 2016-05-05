@@ -1894,4 +1894,10 @@ extern void __init yama_add_hooks(void);
 static inline void __init yama_add_hooks(void) { }
 #endif
 
+#ifdef CONFIG_SECURITY_SAFENAME
+extern void __init safename_add_hooks(void);
+#else
+static inline void __init safename_add_hooks(void) { }
+#endif
+
 #endif /* ! __LINUX_LSM_HOOKS_H */

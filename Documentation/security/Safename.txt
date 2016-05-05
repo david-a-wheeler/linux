@@ -1,0 +1,129 @@
+Safename is a Linux Security Module to harden systems against attack
+by restricting what filenames can be created
+(e.g., it can prevent creation of filenames with control characters like
+newline, filenames beginning with dash, or filenames that are not UTF-8).
+
+Safename can be used to harden a system against attacks
+that are based on creating unusual filenames to exploit
+imperfectly-written programs and user commands.
+Safename enforces rules that many users follow anyway, so non-attackers
+will typically not notice when it's enabled.
+Safename is a minor Linux Security Module, so it can be
+included along with a major module like SELinux or AppArmor.
+
+The TL;DR version is that you can enforce rules to require filenames obey
+the default rules, which counter many attacks, by doing:
+
+    echo 1 > /proc/sys/kernel/safename/mode_for_unprivileged
+    echo 1 > /proc/sys/kernel/safename/mode_for_privileged
+
+Below are more details.
+
+Many POSIX systems, including Linux, normally allow filenames to contain
+any sequence of bytes other than / and \0 (pathnames are a sequence
+of filenames) if the filesystem format allows it.
+However, many users and developers presume that filenames
+can't include control characters (like tab and newline), can't start with "-",
+and are a sequence of valid UTF-8 characters (e.g., for display).
+This difference between what users and developers expect, as compared
+to reality, can lead to security vulnerabilities.
+The Common Weakness Enumeration (CWE) includes 3 weakneses related to this
+(CWE 78, CWE 73, and CWE 116). Examples of vulnerabilities from this
+problem include CVE-2011-1155 (logrotate) and
+CVE-2013-7085 (uscan in devscripts).
+For a general discussion of the problem, see:
+http://www.dwheeler.com/essays/fixing-unix-linux-filenames.html
+There have long been complaints about filenames, e.g., see the comments by
+Jamie Zawinski in the "The Unix-haters handbook" starting on page 167.
+On systems that enforce the default Safename rules on all tasks,
+many filename-related constructs that are widely used, but normally unsafe,
+become safe and work in all cases.
+
+You should still normally write code that handles unusual filenames correctly,
+because that makes your code portable.
+However, it is not trivial to handle arbitrary filenames correctly; see:
+http://www.dwheeler.com/essays/filenames-in-shell.html
+Until all code correctly handles arbitrary filenames, and stays that way,
+Safename can be useful as a security hardening mechanism.
+Like crumple zones on a car, this module can reduce the damage
+caused by accidents.
+
+This module addresses three different cases, where
+"privileged" means "has CAP_SYS_ADMIN":
+1. A malicious untrusted user or application directly
+   creates a malicious filename.
+   Later user commands or code (privileged or not) then
+   cause the filename to be misinterpreted and lead to an exploit
+   Examples of these circumstances include another application
+   on the device and an administrative script trying to
+   manage a virtual machine or container.
+   Examples of incorrect code or scripts include any construct (e.g., pipes)
+   that separate/terminate each filename in a list with a newline
+   (since filenames can contain newlines), a glob beginning with "*" or "?"
+   (since these can expand into "-" and be misinterpreted as options),
+   and displaying filenames (they may include escape sequences or
+   non-UTF-8 sequences).  This problem *cannot* be fixed in userspace;
+   countering these attacks requires a countermeasure in the kernel.
+2. A non-malicious unprivileged application is tricked by an
+   attacker into creating a malicious filename. Later errors in some code
+   (privileged or not) cause the filename to be misinterpreted and
+   lead to an exploit.
+3. Like #1, but a *privileged* application
+   is tricked into creating a malicious filename, which later leads to
+   an exploit.  For this case, you need to prevent privileged processes
+   from creating those filenames.  This module lets you decide if you
+   want to prevent privileged processes from creating such filenames.
+
+This module only prevents *creating* filenames with certain
+characteristics within currently-mounted filesystems.
+It makes no attempt to counter unusual filenames at mount time.
+This is still useful, since in many systems it's not possible
+to mount untrusted filesystems.  A future version of this module
+might add such mount-time checking as an option.
+
+This module's functions can be configured via "/proc/sys/kernel/safename/".
+Within that directory there are the following configuration values:
+
+* mode_for_unprivileged: Mode used for unprivileged tasks (0..3).
+  We consider tasks unpriviliged if they lack capability CAP_SYS_ADMIN.
+  The allowed mode values are:
+  * 0 = not enforced, no reports on failed requests.
+  * 1 = enforced, no reports on failed requests.
+  * 2 = not enforced, reports made on failed requests.
+  * 3 = enforced, reports made on failed requests.
+  Default is 0: no enforcement, no report.
+* mode_for_privileged: Mode used for unprivileged tasks (0..3).
+  We consider tasks privileged if they have capability CAP_SYS_ADMIN.
+  The mode values the same as mode_for_unprivileged.
+  Default is 0: no enforcement, no report.
+* utf8: If true, include a check to see if filenames are valid UTF-8 (0..1).
+  Default is 0: Do not check.
+* permitted_bytes_initial: The set of bytes allowed as the first
+  byte of a filename.  Default value is 33-44,46-125,128-254;
+  this omits control chars, space, '-', '~', 0x7f (DEL),
+  and 0xff (part of FFFE).
+* permitted_bytes_middle: The set of bytes allowed in the middle of
+  a filename (not including the first and last bytes).
+  Filenames less than three bytes long will never consult this value.
+  Default value 32-126,128-254; this omits control chars, 0x7f (DEL),
+  and 0xff (part of FFFE).
+* permitted_bytes_final: The set of bytes allowed as the last byte of
+  a filename. A filename exactly 1 byte long must meet the requirements
+  of both permitted_bytes_initial and and permitted_bytes_final.
+  Default values 33-126,128-254; this omits control chars, space,
+  0x7f (DEL), and 0xff (part of FFFE).
+
+If at least one mode is either 1 or 3, we say that this module is 'enforcing'.
+
+Currently this module returns -EPERM if a filename fails to meet criteria.
+In the future a different (more specific) error value might be returned.
+
+The POSIX 2013 specification says in XBD 4.7 (file portability, page 109)
+that for a filename to be portable across implementations
+conforming to POSIX, "it shall consist only of the
+portable character set as defined in Section 3.278".
+These characters are [A-Za-z0-9._-].
+POSIX also notes that "applications should avoid using
+filenames that have the <hyphen> character as the
+first character since this may cause problems when
+filenames are passed as arguments."
