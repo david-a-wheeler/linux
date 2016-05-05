@@ -84,7 +84,7 @@ unsigned long *permitted_bytes_final_ptr = permitted_bytes_final;
  * but in this case there's no problem; the returns halt processing once we've
  * found a failure (and thus we don't need to examine anything further).
  */
-static const char *utf8_check(const char *s)
+const unsigned char *utf8_check(const unsigned char *s)
 {
 	while (*s) {
 		if (*s < 0x80)
@@ -150,7 +150,7 @@ static int safename_name_check_valid(const char *name)
 	}
 	if (!test_bit(first, permitted_bytes_initial))
 		return -EPERM;
-	if (utf8 && utf8_check(name))
+	if (utf8 && utf8_check((const unsigned char *) name))
 		return -EPERM;
 	/* Check rest of characters. Future: Optimize common cases? */
 	p = ((const unsigned char *) name) + 1;
