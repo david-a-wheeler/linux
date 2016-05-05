@@ -33,7 +33,7 @@ problem include CVE-2011-1155 (logrotate) and
 CVE-2013-7085 (uscan in devscripts).
 For a general discussion of the problem, see:
 http://www.dwheeler.com/essays/fixing-unix-linux-filenames.html
-There have long been complaints about this, e.g., see the rant by
+There have long been complaints about filenames, e.g., see the comments by
 Jamie Zawinski in the "The Unix-haters handbook" starting on page 167.
 On systems that enforce the default Safename rules on all tasks,
 many filename-related constructs that are widely used, but normally unsafe,
@@ -45,6 +45,8 @@ However, it is not trivial to handle arbitrary filenames correctly; see:
 http://www.dwheeler.com/essays/filenames-in-shell.html
 Until all code correctly handles arbitrary filenames, and stays that way,
 Safename can be useful as a security hardening mechanism.
+Like crumple zones on a car, this module can reduce the damage
+caused by accidents.
 
 This module addresses three different cases, where
 "privileged" means "has CAP_SYS_ADMIN":
