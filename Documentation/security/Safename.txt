@@ -115,6 +115,26 @@ Within that directory there are the following configuration values:
 
 If at least one mode is either 1 or 3, we say that this module is 'enforcing'.
 
+By default it does allow U+FEFF, the 'zero width no-break space'
+(aka the byte order mark), even when enforcing UTF-8, since it is a
+legal UTF-8 character.
+
+This does not (currently) enforce any particular kind of UTF-8
+normalization between a composed or decomposed form
+(e.g., NFC or NFD).  The W3C recommends NFC on the web,
+and many systems (including many Linux systems) use NFC for filenames.
+However, MacOS is complicated; it's mostly decomposed but doesn't
+seem to exactly follow that that standard either.  If you want
+details about MacOS, see "Text Encodings in VFS"
+<https://developer.apple.com/library/mac/qa/qa1173/_index.html>.
+The utilities iconv and uconv can convert between normalizations.
+Since this is complicated, and less likely to produce serious security
+failures, this module leaves that be.
+
+This module does not try to ensure that all byte sequences
+are visually distinct.  The kernel can't know what characters look like
+in user space, and that's an extremely difficult problem anyway.
+
 Currently this module returns -EPERM if a filename fails to meet criteria.
 In the future a different (more specific) error value might be returned.
 
