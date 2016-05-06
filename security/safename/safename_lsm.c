@@ -152,7 +152,7 @@ static int safename_name_check_valid(const char *name)
 		return -EINVAL;
 	if (utf8 && utf8_check((const unsigned char *) name))
 		return -EINVAL;
-	p = ((const unsigned char *) name) + 1;
+	p = (const unsigned char *) &name[1];
 	while (1) {
 		/* At start of loop, p points one *past* current char c */
 		next = *p++;
