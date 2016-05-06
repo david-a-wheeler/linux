@@ -135,7 +135,7 @@ This module does not try to ensure that all byte sequences
 are visually distinct.  The kernel can't know what characters look like
 in user space, and that's an extremely difficult problem anyway.
 
-Currently this module returns -EPERM if a filename fails to meet criteria.
+Currently this module returns -EINVAL if a filename fails to meet criteria.
 In the future a different (more specific) error value might be returned.
 
 The POSIX 2013 specification says in XBD 4.7 (file portability, page 109)

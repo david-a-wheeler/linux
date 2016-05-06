@@ -140,18 +140,18 @@ static int safename_name_check_valid(const char *name)
 
 	if (!name) { /* Handle null name; shouldn't happen. */
 		pr_alert("Error - safename got name==NULL\n");
-		return -EPERM;
+		return -EINVAL;
 	}
 	/* Check first character */
 	c = (const unsigned char) name[0];
 	if (!c) { /* Handle 0-length name; shouldn't happen. */
 		pr_alert("Error - safename got 0-length name\n");
-		return -EPERM;
+		return -EINVAL;
 	}
 	if (!test_bit(c, permitted_bytes_initial))
-		return -EPERM;
+		return -EINVAL;
 	if (utf8 && utf8_check((const unsigned char *) name))
-		return -EPERM;
+		return -EINVAL;
 	p = ((const unsigned char *) name) + 1;
 	while (1) {
 		/* At start of loop, p points one *past* current char c */
@@ -159,11 +159,11 @@ static int safename_name_check_valid(const char *name)
 		if (!next)
 			break;
 		if (!test_bit(c, permitted_bytes_middle))
-			return -EPERM;
+			return -EINVAL;
 		c = next;
 	}
 	if (!test_bit(c, permitted_bytes_final))
-		return -EPERM;
+		return -EINVAL;
 	return 0;
 }
 
