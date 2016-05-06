@@ -81,7 +81,7 @@ unsigned long *permitted_bytes_final_ptr = permitted_bytes_final;
  * by Markus Kuhn, released as public domain *and* GPL.
  * See: http://www.cl.cam.ac.uk/~mgk25/short-license.html
  * checkpatch.pl warns "else is not generally useful after a break or return",
- * but in this case there's no problem; the returns halt processing once we've
+ * but in this case there's no problem; the return halts processing once we've
  * found a failure (and thus we don't need to examine anything further).
  */
 const unsigned char *utf8_check(const unsigned char *s)
@@ -108,25 +108,25 @@ const unsigned char *utf8_check(const unsigned char *s)
 				return s;
 			else
 				s += 3;
-			} else if ((s[0] & 0xf8) == 0xf0) {
-				/* 11110XXX 10XXxxxx 10xxxxxx 10xxxxxx */
-				if ((s[1] & 0xc0) != 0x80 ||
-				    (s[2] & 0xc0) != 0x80 ||
-				    (s[3] & 0xc0) != 0x80 ||
-				    (s[0] == 0xf0 && (s[1] & 0xf0) == 0x80) ||
-				    (s[0] == 0xf4 && s[1] > 0x8f) ||
-				    (s[0] > 0xf4))
-					return s;
-				 else
-					s += 4;
-			} else
-				 return s;
+		} else if ((s[0] & 0xf8) == 0xf0) {
+			/* 11110XXX 10XXxxxx 10xxxxxx 10xxxxxx */
+			if ((s[1] & 0xc0) != 0x80 ||
+			    (s[2] & 0xc0) != 0x80 ||
+			    (s[3] & 0xc0) != 0x80 ||
+			    (s[0] == 0xf0 && (s[1] & 0xf0) == 0x80) ||
+			    (s[0] == 0xf4 && s[1] > 0x8f) ||
+			    (s[0] > 0xf4))
+				return s;
+			 else
+				s += 4;
+		} else
+			 return s;
 	}
 	return NULL;
 }
 
 /**
- * safename_name_check_valid - Return 0 iff given filename valid.
+ * safename_name_check_valid - Return 0 iff given filename is valid.
  * @name - filename to check (this is not the entire pathname)
  *
  * Description:
@@ -135,7 +135,7 @@ const unsigned char *utf8_check(const unsigned char *s)
  */
 static int safename_name_check_valid(const char *name)
 {
-	unsigned char first, c, next; /* Unsigned to index in a bitmask */
+	unsigned char c, next; /* Unsigned because we index in a bitmask */
 	const unsigned char *p;
 
 	if (!name) { /* Handle null name; shouldn't happen. */
@@ -143,21 +143,16 @@ static int safename_name_check_valid(const char *name)
 		return -EPERM;
 	}
 	/* Check first character */
-	first = (unsigned char) name[0];
-	if (!first) { /* Handle 0-length name; shouldn't happen. */
+	c = (const unsigned char) name[0];
+	if (!c) { /* Handle 0-length name; shouldn't happen. */
 		pr_alert("Error - safename got 0-length name\n");
 		return -EPERM;
 	}
-	if (!test_bit(first, permitted_bytes_initial))
+	if (!test_bit(c, permitted_bytes_initial))
 		return -EPERM;
 	if (utf8 && utf8_check((const unsigned char *) name))
 		return -EPERM;
-	/* Check rest of characters. Future: Optimize common cases? */
 	p = ((const unsigned char *) name) + 1;
-	c = *p++;
-	if (!c) /* Special case: first character is also last character */
-		return test_bit(first, permitted_bytes_final) ? 0 : -EPERM;
-	/* Examine the rest of the characters EXCEPT the last one */
 	while (1) {
 		/* At start of loop, p points one *past* current char c */
 		next = *p++;
@@ -167,10 +162,7 @@ static int safename_name_check_valid(const char *name)
 			return -EPERM;
 		c = next;
 	}
-	/* Check final character. p is currently one past \0.  We can use
-	 * "p - 2" because we can only get here if strlen(name) >= 2.
-	 */
-	if (!test_bit(*(p - 2), permitted_bytes_final))
+	if (!test_bit(c, permitted_bytes_final))
 		return -EPERM;
 	return 0;
 }
@@ -199,8 +191,8 @@ static void safename_report(const char *name, int enforcing)
  * This function checks the mode bits; if we're supposed to enforce or
  * check, it checks the filename (using safename_name_check_valid)
  * This returns 0 iff given name is acceptable as a filename.
- * This function is separate from safename_dentry_check so that we can
- * check names in the future without a dentry
+ * This function is separate from safename_dentry_check so that
+ * in the future we could check names without a dentry
  * (e.g., if we're checking a filesystem before mounting it
  * and don't want to create dentries while traversing it).
  */
