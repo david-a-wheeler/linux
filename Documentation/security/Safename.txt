@@ -49,7 +49,7 @@ Like crumple zones on a car, this module can reduce the damage
 caused by accidents.
 
 This module addresses three different cases, where
-"privileged" means "has CAP_SYS_ADMIN":
+"privileged" means "has CAP_MAC_ADMIN":
 1. A malicious untrusted user or application directly
    creates a malicious filename.
    Later user commands or code (privileged or not) then
@@ -85,7 +85,7 @@ This module's functions can be configured via "/proc/sys/kernel/safename/".
 Within that directory there are the following configuration values:
 
 * mode_for_unprivileged: Mode used for unprivileged tasks (0..3).
-  We consider tasks unpriviliged if they lack capability CAP_SYS_ADMIN.
+  We consider tasks unpriviliged if they lack capability CAP_MAC_ADMIN.
   The allowed mode values are:
   * 0 = not enforced, no reports on failed requests.
   * 1 = enforced, no reports on failed requests.
@@ -93,7 +93,7 @@ Within that directory there are the following configuration values:
   * 3 = enforced, reports made on failed requests.
   Default is 0: no enforcement, no report.
 * mode_for_privileged: Mode used for unprivileged tasks (0..3).
-  We consider tasks privileged if they have capability CAP_SYS_ADMIN.
+  We consider tasks privileged if they have capability CAP_MAC_ADMIN.
   The mode values the same as mode_for_unprivileged.
   Default is 0: no enforcement, no report.
 * utf8: If true, include a check to see if filenames are valid UTF-8 (0..1).

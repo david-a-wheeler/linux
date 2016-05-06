@@ -30,7 +30,7 @@
  */
 
 /* Mode used for unprivileged tasks.  We consider tasks without
- * CAP_SYS_ADMIN as unprivileged.  The mode values are:
+ * CAP_MAC_ADMIN as unprivileged.  The mode values are:
  * 0 = not enforced, no reports on failed requests.
  * 1 = enforced, no reports on failed requests.
  * 2 = not enforced, reports made on failed requests.
@@ -40,7 +40,7 @@
 static int mode_for_unprivileged;
 
 /* Mode used for privileged tasks.  We consider tasks with
- * CAP_SYS_ADMIN as privileged.  The mode values the same as
+ * CAP_MAC_ADMIN as privileged.  The mode values the same as
  * mode_for_unprivileged.
  * Default is 0: no enforcement, no report.
  */
@@ -200,7 +200,7 @@ static int safename_name_check(const char *name)
 {
 	int mode, err;
 
-	if (capable(CAP_SYS_ADMIN))
+	if (capable(CAP_MAC_ADMIN))
 		mode = mode_for_privileged;
 	else
 		mode = mode_for_unprivileged;
