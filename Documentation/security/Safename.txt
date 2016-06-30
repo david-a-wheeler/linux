@@ -100,8 +100,9 @@ Within that directory there are the following configuration values:
   Default is 0: Do not check.
 * permitted_bytes_initial: The set of bytes allowed as the first
   byte of a filename.  Default value is 33-44,46-125,128-254;
-  this omits control chars, space, '-', '~', 0x7f (DEL),
-  and 0xff (part of FFFE).
+  this omits control chars, space, '-', 0x7f (DEL),
+  and 0xff (part of FFFE).  At one time '~' (0x7e) was omitted by default,
+  but this caused trouble with Dropbox (of course, you can change the default).
 * permitted_bytes_middle: The set of bytes allowed in the middle of
   a filename (not including the first and last bytes).
   Filenames less than three bytes long will never consult this value.
