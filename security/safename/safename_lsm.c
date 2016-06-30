@@ -25,7 +25,8 @@
  *
  * Possible future directions:
  * - Optionally check filenames on mount.
- * - Possibly optimize byte check loop for common cases.
+ * - Optimize byte check loop for common cases.
+ * - Add checks for permitted/forbidden UTF-8 characters
  * - Namespace this to allow per-container control.
  */
 
